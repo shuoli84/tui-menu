@@ -7,3 +7,6 @@ edition = "2021"
 
 [dependencies]
 tui = "0.19"
+
+[dev-dependencies]
+crossterm = "0.25"

@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use std::{borrow::Cow, marker::PhantomData};
 use tui::{
     layout::Rect,
     style::{Color, Style},
@@ -73,7 +73,7 @@ impl<T: Clone> MenuState<T> {
     /// ```
     ///
     pub fn activate(&mut self) {
-        self.root_item.select_next();
+        self.root_item.highlight_next();
     }
 
     /// trigger up movement
@@ -123,6 +123,28 @@ impl<T: Clone> MenuState<T> {
         }
     }
 
+    /// trigger down movement
+    ///
+    /// NOTE: this action tries to do intuitive movement,
+    /// which means logicially it is not consistent, e.g:
+    /// case 1:
+    ///    group 1      > group 2        group 3
+    ///                   sub item 1
+    ///                   sub item 2
+    /// down is enter, which enter the sub group of group 2
+    ///
+    /// case 2:
+    ///    group 1        group 2        group 3
+    ///                   sub item 1
+    ///                 > sub item 2
+    /// down does nothing
+    ///
+    /// case 3:
+    ///    group 1        group 2   
+    ///                 > sub item 1
+    ///                   sub item 2
+    ///
+    /// down highlights "sub item 2"
     pub fn down(&mut self) {
         if self.active_depth() == 1 {
             self.push();
@@ -131,6 +153,28 @@ impl<T: Clone> MenuState<T> {
         }
     }
 
+    /// trigger left movement
+    ///
+    /// NOTE: this action tries to do intuitive movement,
+    /// which means logicially it is not consistent, e.g:
+    /// case 1:
+    ///    group 1      > group 2        group 3
+    ///                   sub item 1
+    ///                   sub item 2
+    /// left highlights "group 1"
+    ///
+    /// case 2:
+    ///    group 1        group 2        group 3
+    ///                   sub item 1
+    ///                 > sub item 2
+    /// left first pop "sub item group", then highlights "group 1"
+    ///
+    /// case 3:
+    ///    group 1        group 2   
+    ///                 > sub item 1    sub sub item 1
+    ///                   sub item 2  > sub sub item 2
+    ///
+    /// left pop "sub sub group"
     pub fn left(&mut self) {
         if self.active_depth() == 1 {
             self.prev();
@@ -142,6 +186,28 @@ impl<T: Clone> MenuState<T> {
         }
     }
 
+    /// trigger right movement
+    ///
+    /// NOTE: this action tries to do intuitive movement,
+    /// which means logicially it is not consistent, e.g:
+    /// case 1:
+    ///    group 1      > group 2        group 3
+    ///                   sub item 1
+    ///                   sub item 2
+    /// right highlights "group 3"
+    ///
+    /// case 2:
+    ///    group 1        group 2        group 3
+    ///                   sub item 1
+    ///                 > sub item 2
+    /// right pop group "sub item *", then highlights "group 3"
+    ///
+    /// case 3:
+    ///    group 1        group 2        group 3
+    ///                   sub item 1
+    ///                 > sub item 2 +
+    /// right pushes "sub sub item 2". this differs from case 2 that
+    /// current highlighted item can be expanded
     pub fn right(&mut self) {
         if self.active_depth() == 1 {
             self.next();
@@ -157,19 +223,23 @@ impl<T: Clone> MenuState<T> {
         }
     }
 
-    pub fn prev(&mut self) {
+    /// highlight the prev item in current group
+    /// if already the first, then do nothing
+    fn prev(&mut self) {
         if let Some(item) = self.root_item.highlight_last_but_one() {
-            item.select_prev();
+            item.highlight_prev();
         } else {
-            self.root_item.select_prev();
+            self.root_item.highlight_prev();
         }
     }
 
-    pub fn next(&mut self) {
+    /// highlight the next item in current group
+    /// if already the last, then do nothing
+    fn next(&mut self) {
         if let Some(item) = self.root_item.highlight_last_but_one() {
-            item.select_next();
+            item.highlight_next();
         } else {
-            self.root_item.select_next();
+            self.root_item.highlight_next();
         }
     }
 
@@ -204,15 +274,18 @@ impl<T: Clone> MenuState<T> {
     /// Return: Some if entered deeper level
     ///         None if nothing happen
     pub fn push(&mut self) -> Option<()> {
-        self.root_item.highlight_mut()?.select_first_child()
+        self.root_item.highlight_mut()?.highlight_first_child()
     }
 
+    /// pop the current menu group. move one layer up
     pub fn pop(&mut self) {
         if let Some(item) = self.root_item.highlight_mut() {
             item.clear_highlight();
         }
     }
 
+    /// clear all highlighted items. This is useful
+    /// when the menu bar lose focus
     pub fn reset(&mut self) {
         self.root_item
             .children
@@ -232,15 +305,18 @@ impl<T: Clone> MenuState<T> {
     }
 }
 
+/// MenuItem is the node in menu tree. If children is not
+/// empty, then this item is the group item.
 pub struct MenuItem<T> {
-    pub name: String,
+    name: Cow<'static, str>,
     pub data: Option<T>,
     children: Vec<MenuItem<T>>,
     is_highlight: bool,
 }
 
 impl<T> MenuItem<T> {
-    pub fn item(name: impl Into<String>, data: T) -> Self {
+    /// helper function to create an non group item.
+    pub fn item(name: impl Into<Cow<'static, str>>, data: T) -> Self {
         Self {
             name: name.into(),
             data: Some(data),
@@ -249,7 +325,21 @@ impl<T> MenuItem<T> {
         }
     }
 
-    pub fn group(name: impl Into<String>, children: Vec<Self>) -> Self {
+    /// helper function to create a group item.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use tui_menu::MenuItem;
+    ///
+    /// let item = MenuItem::<&'static str>::group("group", vec![
+    ///     MenuItem::item("foo", "label_foo"),
+    /// ]);
+    ///
+    /// assert!(item.is_group());
+    ///
+    /// ```
+    pub fn group(name: impl Into<Cow<'static, str>>, children: Vec<Self>) -> Self {
         Self {
             name: name.into(),
             data: None,
@@ -258,11 +348,18 @@ impl<T> MenuItem<T> {
         }
     }
 
-    fn name(&self) -> &String {
+    /// whether this item is group
+    pub fn is_group(&self) -> bool {
+        !self.children.is_empty()
+    }
+
+    /// get current item's name
+    fn name(&self) -> &str {
         &self.name
     }
 
-    fn select_first_child(&mut self) -> Option<()> {
+    /// highlight first child
+    fn highlight_first_child(&mut self) -> Option<()> {
         if !self.children.is_empty() {
             if let Some(it) = self.children.iter_mut().nth(0) {
                 it.is_highlight = true;
@@ -273,11 +370,11 @@ impl<T> MenuItem<T> {
         }
     }
 
-    /// select prev item in this node
-    fn select_prev(&mut self) {
+    /// highlight prev item in this node
+    fn highlight_prev(&mut self) {
         // if no child selected, then
         let Some(current_index) = self.highlight_child_index() else {
-            self.select_first_child();
+            self.highlight_first_child();
             return;
         };
 
@@ -291,11 +388,11 @@ impl<T> MenuItem<T> {
         self.children[index_to_highlight].is_highlight = true;
     }
 
-    /// select prev item in this node
-    pub fn select_next(&mut self) {
+    /// highlight prev item in this node
+    fn highlight_next(&mut self) {
         // if no child selected, then
         let Some(current_index) = self.highlight_child_index() else {
-            self.select_first_child();
+            self.highlight_first_child();
             return;
         };
 
@@ -304,6 +401,7 @@ impl<T> MenuItem<T> {
         self.children[index_to_highlight].is_highlight = true;
     }
 
+    /// return highlighted child index
     fn highlight_child_index(&self) -> Option<usize> {
         for (idx, child) in self.children.iter().enumerate() {
             if child.is_highlight {
@@ -325,7 +423,7 @@ impl<T> MenuItem<T> {
     }
 
     /// clear is_highlight flag recursively.
-    pub fn clear_highlight(&mut self) {
+    fn clear_highlight(&mut self) {
         self.is_highlight = false;
         for child in self.children.iter_mut() {
             child.clear_highlight();
@@ -347,7 +445,7 @@ impl<T> MenuItem<T> {
     }
 
     /// mut version of highlight
-    pub fn highlight_mut(&mut self) -> Option<&mut Self> {
+    fn highlight_mut(&mut self) -> Option<&mut Self> {
         if !self.is_highlight {
             return None;
         }
@@ -361,7 +459,7 @@ impl<T> MenuItem<T> {
     }
 
     /// last but one layer in highlight
-    pub fn highlight_last_but_one(&mut self) -> Option<&mut Self> {
+    fn highlight_last_but_one(&mut self) -> Option<&mut Self> {
         // if self is not highlighted or there is no highlighed child, return None
         if !self.is_highlight || self.highlight_child_mut().is_none() {
             return None;
@@ -380,10 +478,15 @@ impl<T> MenuItem<T> {
     }
 }
 
+/// Widget focos on display/render
 pub struct Menu<T> {
-    default_style: Style,
-    highlight_style: Style,
+    /// default item style
+    default_item_style: Style,
+    /// style when item is highlighted
+    highlight_item_style: Style,
+    /// width for drop down group panel
     drop_down_width: u16,
+    /// style for the drop down panel
     drop_down_style: Style,
     _priv: PhantomData<T>,
 }
@@ -391,14 +494,39 @@ pub struct Menu<T> {
 impl<T> Menu<T> {
     pub fn new() -> Self {
         Self {
-            highlight_style: Style::default().fg(Color::White).bg(Color::LightBlue),
-            default_style: Style::default().fg(Color::White),
+            highlight_item_style: Style::default().fg(Color::White).bg(Color::LightBlue),
+            default_item_style: Style::default().fg(Color::White),
             drop_down_width: 20,
             drop_down_style: Style::default().bg(Color::DarkGray),
             _priv: Default::default(),
         }
     }
 
+    /// update with highlight style
+    pub fn default_style(mut self, style: Style) -> Self {
+        self.default_item_style = style;
+        self
+    }
+
+    /// update with highlight style
+    pub fn highlight(mut self, style: Style) -> Self {
+        self.highlight_item_style = style;
+        self
+    }
+
+    /// update drop_down_width
+    pub fn dropdown_width(mut self, width: u16) -> Self {
+        self.drop_down_width = width;
+        self
+    }
+
+    /// update drop_down fill style
+    pub fn dropdown_style(mut self, style: Style) -> Self {
+        self.drop_down_style = style;
+        self
+    }
+
+    /// render a item group in drop down
     fn render_drop_down(
         &self,
         x: u16,
@@ -421,9 +549,9 @@ impl<T> Menu<T> {
                 &Span::styled(
                     item.name(),
                     if is_active {
-                        self.highlight_style
+                        self.highlight_item_style
                     } else {
-                        self.default_style
+                        self.default_item_style
                     },
                 ),
                 self.drop_down_width,
@@ -454,14 +582,14 @@ impl<T> StatefulWidget for Menu<T> {
         for (idx, item) in state.root_item.children.iter().enumerate() {
             let is_highlight = item.is_highlight;
             let item_style = if is_highlight {
-                self.highlight_style
+                self.highlight_item_style
             } else {
-                self.default_style
+                self.default_item_style
             };
             let has_children = !item.children.is_empty();
 
             let group_x_pos = x_pos;
-            let span = Span::styled(&item.name, item_style);
+            let span = Span::styled(item.name(), item_style);
             x_pos += span.width();
             spans.push(span);
 
