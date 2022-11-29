@@ -5,6 +5,7 @@ edition = "2021"
 description = "A menu widget for tui-rs"
 license = "MIT OR Apache-2.0"
 keywords = ["tui"]
+repository = "https://github.com/shuoli84/tui-menu"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
