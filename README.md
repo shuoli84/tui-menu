@@ -1,20 +1,24 @@
 # tui-menu
-A menu widget for tui-rs ecosystem.
 
-# Features
-* Sub menu groups. 
-* Intuitive movement.
-* Item's data is generic as long as it ```Clone```able.
+A menu widget for [Ratatui](https://crates.io/crates/ratatui).
 
-# Try
+## Features
+
+- Sub menu groups.
+- Intuitive movement.
+- Item's data is generic as long as it ```Clone```able.
+
+## Try
+
 ``` bash
 cargo run --example basic
 ```
 
-# Example
+## Example
+
 take a look at examples/basic.rs
 
-## Render
+### Render
 
 ```rust
 // menu should be draw at last, so it can stay on top of other content
@@ -22,7 +26,7 @@ let menu = Menu::new();
 f.render_stateful_widget(menu, chunks[0], &mut app.menu);
 ```
 
-## Create nested menu tree
+### Create nested menu tree
 
 ```rust
 let menu = MenuState::new(vec![
@@ -60,7 +64,8 @@ let menu = MenuState::new(vec![
 ]);
 ```
 
-## Consume events
+### Consume events
+
 ``` rust
 for e in app.menu.drain_events() {
     match e {

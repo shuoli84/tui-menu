@@ -3,14 +3,14 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use std::{borrow::Cow, error::Error, io};
-use tui::{
+use ratatui::{
     backend::{Backend, CrosstermBackend},
     layout::{Constraint, Direction, Layout},
     style::{Color, Style},
     widgets::{Block, Borders},
     Frame, Terminal,
 };
+use std::{borrow::Cow, error::Error, io};
 use tui_menu::{Menu, MenuItem, MenuState};
 
 struct App {
@@ -118,7 +118,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
     }
 }
 
-fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
+fn ui(f: &mut Frame, app: &mut App) {
     let size = f.size();
 
     let chunks = Layout::default()
