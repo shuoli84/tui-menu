@@ -1,25 +1,59 @@
+use color_eyre::config::HookBuilder;
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
+    event::{self, Event, KeyCode},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use ratatui::{
-    backend::{Backend, CrosstermBackend},
-    layout::{Constraint, Direction, Layout},
-    style::{Color, Style},
-    widgets::{Block, Borders},
-    Frame, Terminal,
+use ratatui::{prelude::*, widgets::Block};
+use std::{
+    borrow::Cow,
+    io::{self, stdout, Stdout},
 };
-use std::{borrow::Cow, error::Error, io};
-use tui_menu::{Menu, MenuItem, MenuState};
+use tui_menu::{Menu, MenuEvent, MenuItem, MenuState};
+
+fn main() -> color_eyre::Result<()> {
+    let mut terminal = init_terminal()?;
+    App::new().run(&mut terminal)?;
+    restore_terminal()?;
+    Ok(())
+}
+
+/// Install panic and error hooks that restore the terminal before printing the error.
+pub fn init_hooks() -> color_eyre::Result<()> {
+    let (panic, error) = HookBuilder::default().into_hooks();
+    let panic = panic.into_panic_hook();
+    let error = error.into_eyre_hook();
+
+    std::panic::set_hook(Box::new(move |info| {
+        let _ = restore_terminal(); // ignore failure to restore terminal
+        panic(info);
+    }));
+    color_eyre::eyre::set_hook(Box::new(move |e| {
+        let _ = restore_terminal(); // ignore failure to restore terminal
+        error(e)
+    }))?;
+
+    Ok(())
+}
+
+fn init_terminal() -> io::Result<Terminal<CrosstermBackend<Stdout>>> {
+    enable_raw_mode()?;
+    execute!(stdout(), EnterAlternateScreen)?;
+    Terminal::new(CrosstermBackend::new(stdout()))
+}
+
+fn restore_terminal() -> io::Result<()> {
+    disable_raw_mode()?;
+    execute!(stdout(), LeaveAlternateScreen,)
+}
 
 struct App {
-    menu: tui_menu::MenuState<Cow<'static, str>>,
+    menu: MenuState<Cow<'static, str>>,
 }
 
 impl App {
-    fn new() -> App {
-        App {
+    fn new() -> Self {
+        Self {
             menu: MenuState::new(vec![
                 MenuItem::group(
                     "File",
@@ -57,82 +91,58 @@ impl App {
     }
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
-    // setup terminal
-    enable_raw_mode()?;
-    let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
-    let backend = CrosstermBackend::new(stdout);
-    let mut terminal = Terminal::new(backend)?;
+impl App {
+    fn run<B: Backend>(mut self, terminal: &mut Terminal<B>) -> io::Result<()> {
+        loop {
+            terminal.draw(|frame| frame.render_widget(&mut self, frame.size()))?;
 
-    // create app and run it
-    let app = App::new();
-    let res = run_app(&mut terminal, app);
+            if event::poll(std::time::Duration::from_millis(10))? {
+                if let Event::Key(key) = event::read()? {
+                    self.on_key_event(key);
+                }
+            }
 
-    // restore terminal
-    disable_raw_mode()?;
-    execute!(
-        terminal.backend_mut(),
-        LeaveAlternateScreen,
-        DisableMouseCapture
-    )?;
-    terminal.show_cursor()?;
-
-    if let Err(err) = res {
-        println!("{:?}", err)
-    }
-
-    Ok(())
-}
-
-fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<()> {
-    loop {
-        terminal.draw(|f| ui(f, &mut app))?;
-
-        if event::poll(std::time::Duration::from_millis(10))? {
-            if let Event::Key(key) = event::read()? {
-                match key.code {
-                    KeyCode::Char('h') | KeyCode::Left => app.menu.left(),
-                    KeyCode::Char('l') | KeyCode::Right => app.menu.right(),
-                    KeyCode::Char('j') | KeyCode::Down => app.menu.down(),
-                    KeyCode::Char('k') | KeyCode::Up => app.menu.up(),
-                    KeyCode::Esc => app.menu.reset(),
-                    KeyCode::Enter => app.menu.select(),
-                    _ => {}
+            for e in self.menu.drain_events() {
+                match e {
+                    MenuEvent::Selected(item) => match item.as_ref() {
+                        "exit" => {
+                            return Ok(());
+                        }
+                        _ => {
+                            // println!("{} selected", item);
+                        }
+                    },
                 }
             }
         }
+    }
 
-        for e in app.menu.drain_events() {
-            match e {
-                tui_menu::MenuEvent::Selected(item) => match item.as_ref() {
-                    "exit" => {
-                        return Ok(());
-                    }
-                    _ => {
-                        // println!("{} selected", item);
-                    }
-                },
-            }
+    fn on_key_event(&mut self, key: event::KeyEvent) {
+        match key.code {
+            KeyCode::Char('h') | KeyCode::Left => self.menu.left(),
+            KeyCode::Char('l') | KeyCode::Right => self.menu.right(),
+            KeyCode::Char('j') | KeyCode::Down => self.menu.down(),
+            KeyCode::Char('k') | KeyCode::Up => self.menu.up(),
+            KeyCode::Esc => self.menu.reset(),
+            KeyCode::Enter => self.menu.select(),
+            _ => {}
         }
     }
 }
 
-fn ui(f: &mut Frame, app: &mut App) {
-    let size = f.size();
+impl Widget for &mut App {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        use Constraint::*;
+        let [top, main] = Layout::vertical([Length(1), Fill(1)]).areas(area);
 
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Length(1), Constraint::Percentage(80)].as_ref())
-        .split(size);
+        Block::bordered()
+            .title("Content")
+            .on_black()
+            .render(main, buf);
 
-    let block = Block::default()
-        .title("Content")
-        .borders(Borders::ALL)
-        .style(Style::default().bg(Color::Black));
-    f.render_widget(block, chunks[1]);
+        "tui-menu".bold().blue().to_centered_line().render(top, buf);
 
-    // menu should be draw at last, so it can stay on top of other content
-    let menu = Menu::new();
-    f.render_stateful_widget(menu, chunks[0], &mut app.menu);
+        // draw menu last, so it renders on top of other content
+        Menu::new().render(top, buf, &mut self.menu);
+    }
 }
