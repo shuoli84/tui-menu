@@ -1,8 +1,8 @@
 [package]
 name = "tui-menu"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2021"
-description = "A menu widget for tui-rs"
+description = "A menu widget for Ratatui"
 license = "MIT OR Apache-2.0"
 keywords = ["tui"]
 repository = "https://github.com/shuoli84/tui-menu"
@@ -10,7 +10,7 @@ repository = "https://github.com/shuoli84/tui-menu"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tui = "0.19"
+ratatui = "0.26.1"
 
 [dev-dependencies]
-crossterm = "0.25"
+crossterm = "0.27.0"

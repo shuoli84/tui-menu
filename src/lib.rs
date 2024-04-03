@@ -1,10 +1,10 @@
-use std::{borrow::Cow, marker::PhantomData};
-use tui::{
+use ratatui::{
     layout::Rect,
     style::{Color, Style},
-    text::{Span, Spans},
+    text::{Line, Span},
     widgets::{Clear, StatefulWidget, Widget},
 };
+use std::{borrow::Cow, marker::PhantomData};
 
 /// Events this widget produce
 /// Now only emit Selected, may add few in future
@@ -532,7 +532,7 @@ impl<T> Menu<T> {
         x: u16,
         y: u16,
         group: &[MenuItem<T>],
-        buf: &mut tui::buffer::Buffer,
+        buf: &mut ratatui::buffer::Buffer,
         depth: usize,
     ) {
         let area = Rect::new(x, y, self.drop_down_width, group.len() as u16);
@@ -574,7 +574,7 @@ impl<T> Menu<T> {
 impl<T> StatefulWidget for Menu<T> {
     type State = MenuState<T>;
 
-    fn render(self, area: Rect, buf: &mut tui::buffer::Buffer, state: &mut Self::State) {
+    fn render(self, area: Rect, buf: &mut ratatui::buffer::Buffer, state: &mut Self::State) {
         let mut spans = vec![];
         let mut x_pos = 0;
         let y_pos = area.y;
@@ -603,6 +603,6 @@ impl<T> StatefulWidget for Menu<T> {
                 spans.push(span);
             }
         }
-        buf.set_spans(area.x, area.y, &Spans::from(spans), x_pos as u16);
+        buf.set_line(area.x, area.y, &Line::from(spans), x_pos as u16);
     }
 }
