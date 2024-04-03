@@ -65,16 +65,24 @@ Hide
 Type "cargo run --example basic" Enter
 Sleep 2s # allow some time for the build to complete
 Show
-Set TypingSpeed 1s
-Right 3
-Left 2
-Down 3
-Right
-Screenshot target/demo.png
-Down
-Left
-Down 2
-Enter
+Set TypingSpeed 500ms
+
+# File | Open recent | file_1.txt
+Right Down 3 Right
+# screenshot for ratatui.rs showcase
+Sleep 100ms Screenshot target/demo.png
+Enter Sleep 1s
+
+# File | Open recent | file_2.txt
+Right Down 3 Right Down Enter Sleep 1s
+
+# Show off other menus
+Right 3 Left 2
+
+# File | Exit
+Down 5 Enter
+
+# Show that the app exited before repeating the animation
 Sleep 1s
 Hide
 

@@ -4,11 +4,11 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use ratatui::{prelude::*, widgets::Block};
-use std::{
-    borrow::Cow,
-    io::{self, stdout, Stdout},
+use ratatui::{
+    prelude::*,
+    widgets::{Block, Paragraph},
 };
+use std::io::{self, stdout, Stdout};
 use tui_menu::{Menu, MenuEvent, MenuItem, MenuState};
 
 fn main() -> color_eyre::Result<()> {
@@ -48,47 +48,63 @@ fn restore_terminal() -> io::Result<()> {
 }
 
 struct App {
-    menu: MenuState<Cow<'static, str>>,
+    content: String,
+    menu: MenuState<Action>,
 }
 
 impl App {
     fn new() -> Self {
         Self {
+            content: String::new(),
             menu: MenuState::new(vec![
                 MenuItem::group(
                     "File",
                     vec![
-                        MenuItem::item("New", "file.new".into()),
-                        MenuItem::item("Open", "file.open".into()),
+                        MenuItem::item("New", Action::FileNew),
+                        MenuItem::item("Open", Action::FileOpen),
                         MenuItem::group(
                             "Open recent",
-                            vec!["file_1.txt", "file_2.txt"]
-                                .into_iter()
-                                .map(|f| MenuItem::item(f, format!("file.recent:{f}").into()))
+                            ["file_1.txt", "file_2.txt"]
+                                .iter()
+                                .map(|&f| MenuItem::item(f, Action::FileOpenRecent(f.into())))
                                 .collect(),
                         ),
-                        MenuItem::item("Save as", "file.save_as".into()),
-                        MenuItem::item("Exit", "exit".into()),
+                        MenuItem::item("Save as", Action::FileSaveAs),
+                        MenuItem::item("Exit", Action::Exit),
                     ],
                 ),
                 MenuItem::group(
                     "Edit",
                     vec![
-                        MenuItem::item("Copy", "edit.new".into()),
-                        MenuItem::item("Cut", "edit.cut".into()),
-                        MenuItem::item("Paste", "edit.paste".into()),
+                        MenuItem::item("Copy", Action::EditCopy),
+                        MenuItem::item("Cut", Action::EditCut),
+                        MenuItem::item("Paste", Action::EditPaste),
                     ],
                 ),
                 MenuItem::group(
                     "About",
                     vec![
-                        MenuItem::item("Author", "about.author".into()),
-                        MenuItem::item("Help", "about.help".into()),
+                        MenuItem::item("Author", Action::AboutAuthor),
+                        MenuItem::item("Help", Action::AboutHelp),
                     ],
                 ),
             ]),
         }
     }
+}
+
+#[derive(Debug, Clone)]
+enum Action {
+    FileNew,
+    FileOpen,
+    FileOpenRecent(String),
+    FileSaveAs,
+    Exit,
+    EditCopy,
+    EditCut,
+    EditPaste,
+    AboutAuthor,
+    AboutHelp,
 }
 
 impl App {
@@ -104,15 +120,22 @@ impl App {
 
             for e in self.menu.drain_events() {
                 match e {
-                    MenuEvent::Selected(item) => match item.as_ref() {
-                        "exit" => {
+                    MenuEvent::Selected(item) => match item {
+                        Action::Exit => {
                             return Ok(());
                         }
-                        _ => {
-                            // println!("{} selected", item);
+                        Action::FileNew => {
+                            self.content.clear();
+                        }
+                        Action::FileOpenRecent(file) => {
+                            self.content = format!("content of {file}");
+                        }
+                        action => {
+                            self.content = format!("{action:?} not implemented");
                         }
                     },
                 }
+                self.menu.reset();
             }
         }
     }
@@ -135,9 +158,8 @@ impl Widget for &mut App {
         use Constraint::*;
         let [top, main] = Layout::vertical([Length(1), Fill(1)]).areas(area);
 
-        Block::bordered()
-            .title("Content")
-            .on_black()
+        Paragraph::new(self.content.as_str())
+            .block(Block::bordered().title("Content").on_black())
             .render(main, buf);
 
         "tui-menu".bold().blue().to_centered_line().render(top, buf);
