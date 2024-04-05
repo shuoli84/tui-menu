@@ -13,4 +13,5 @@ repository = "https://github.com/shuoli84/tui-menu"
 ratatui = "0.26.1"
 
 [dev-dependencies]
+color-eyre = "0.6.3"
 crossterm = "0.27.0"
