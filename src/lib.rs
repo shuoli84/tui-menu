@@ -20,6 +20,7 @@ pub struct MenuState<T> {
     root_item: MenuItem<T>,
     /// stores events generated in one frame
     events: Vec<MenuEvent<T>>,
+    drop_down_orientation_left: bool,
 }
 
 impl<T: Clone> MenuState<T> {
@@ -48,6 +49,7 @@ impl<T: Clone> MenuState<T> {
                 is_highlight: true,
             },
             events: Default::default(),
+            drop_down_orientation_left: true,
         }
     }
 
@@ -176,11 +178,25 @@ impl<T: Clone> MenuState<T> {
     ///
     /// left pop "sub sub group"
     pub fn left(&mut self) {
-        if self.active_depth() == 1 {
-            self.prev();
-        } else if self.active_depth() == 2 {
+        if self.active_depth() == 0 {
+            return;
+        } else if self.active_depth() == 1 {
+            self.prev()
+        } else if self.drop_down_orientation_left {
+            self.go_into();
+        } else {
+            self.go_back();
+        }
+    }
+
+    fn go_back(&mut self) {
+        if self.active_depth() == 2 {
             self.pop();
-            self.prev();
+            if self.drop_down_orientation_left {
+                self.next();
+            } else {
+                self.prev();
+            }
         } else {
             self.pop();
         }
@@ -209,14 +225,28 @@ impl<T: Clone> MenuState<T> {
     /// right pushes "sub sub item 2". this differs from case 2 that
     /// current highlighted item can be expanded
     pub fn right(&mut self) {
-        if self.active_depth() == 1 {
-            self.next();
-        } else if self.active_depth() == 2 {
+        if self.active_depth() == 0 {
+            return;
+        } else if self.active_depth() == 1 {
+            self.next()
+        } else if self.drop_down_orientation_left {
+            self.go_back();
+        } else {
+            self.go_into();
+        }
+    }
+
+    fn go_into(&mut self) {
+        if self.active_depth() == 2 {
             if self.push().is_none() {
                 // special handling, make menu navigation
                 // more productive
                 self.pop();
-                self.next();
+                if self.drop_down_orientation_left {
+                    self.prev();
+                } else {
+                    self.next();
+                }
             }
         } else {
             self.push();
@@ -532,8 +562,8 @@ impl<T> Menu<T> {
         x: u16,
         y: u16,
         group: &[MenuItem<T>],
+        left_orientation: bool,
         buf: &mut ratatui::buffer::Buffer,
-        depth: usize,
     ) {
         let area = Rect::new(x, y, self.drop_down_width, group.len() as u16);
         Clear.render(area, buf);
@@ -559,13 +589,23 @@ impl<T> Menu<T> {
 
             // show children
             if is_active && !item.children.is_empty() {
-                self.render_drop_down(
-                    x + self.drop_down_width,
-                    item_y,
-                    &item.children,
-                    buf,
-                    depth + 1,
-                );
+                if !left_orientation {
+                    self.render_drop_down(
+                        x + self.drop_down_width,
+                        item_y,
+                        &item.children,
+                        left_orientation,
+                        buf,
+                    );
+                } else {
+                    self.render_drop_down(
+                        x - self.drop_down_width,
+                        item_y,
+                        &item.children,
+                        left_orientation,
+                        buf,
+                    );
+                }
             }
         }
     }
@@ -576,7 +616,7 @@ impl<T> StatefulWidget for Menu<T> {
 
     fn render(self, area: Rect, buf: &mut ratatui::buffer::Buffer, state: &mut Self::State) {
         let mut spans = vec![];
-        let mut x_pos = 0;
+        let mut x_pos = usize::from(area.x);
         let y_pos = area.y;
 
         for (idx, item) in state.root_item.children.iter().enumerate() {
@@ -594,7 +634,24 @@ impl<T> StatefulWidget for Menu<T> {
             spans.push(span);
 
             if has_children && is_highlight {
-                self.render_drop_down(group_x_pos as u16, y_pos as u16 + 1, &item.children, buf, 1);
+                if !state.drop_down_orientation_left {
+                    self.render_drop_down(
+                        group_x_pos as u16,
+                        y_pos as u16 + 1,
+                        &item.children,
+                        false,
+                        buf,
+                    );
+                } else {
+                    self.render_drop_down(
+                        (group_x_pos as usize - self.drop_down_width as usize + item.name.len())
+                            as u16,
+                        y_pos as u16 + 1,
+                        &item.children,
+                        true,
+                        buf,
+                    );
+                }
             }
 
             if idx < state.root_item.children.len() - 1 {
