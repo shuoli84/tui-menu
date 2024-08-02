@@ -14,28 +14,39 @@ pub enum MenuEvent<T> {
     Selected(T),
 }
 
-/// The state for menu, keep track of runtime info
+/// The state for menu, keeps track of runtime info
 pub struct MenuState<T> {
     /// stores the menu tree
     root_item: MenuItem<T>,
     /// stores events generated in one frame
     events: Vec<MenuEvent<T>>,
-    orientation: Orientation,
+    orientation: MenuOrientation,
 }
 
+/// Orientation of [Menu] which is configurable in [MenuState]
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum Orientation {
+pub enum MenuOrientation {
     Left,
     Right,
 }
 
-impl Orientation {
-    fn is_left(self) -> bool {
-        self == Orientation::Left
+impl Default for MenuOrientation {
+    fn default() -> Self {
+        Self::Right
+    }
+}
+
+impl MenuOrientation {
+    /// Returns `true` if the menu is oriented to the left.
+    #[must_use = "returns the requested orientation of the menu"]
+    pub const fn is_left(&self) -> bool {
+        matches!(self, Self::Left)
     }
 
-    fn is_right(self) -> bool {
-        self == Orientation::Right
+    /// Returns `true` if the menu is oriented to the right.
+    #[must_use = "returns the requested orientation of the menu"]
+    pub const fn is_right(&self) -> bool {
+        matches!(self, Self::Right)
     }
 }
 
@@ -65,11 +76,38 @@ impl<T: Clone> MenuState<T> {
                 is_highlight: true,
             },
             events: Default::default(),
-            orientation: Orientation::Right,
+            orientation: MenuOrientation::Right,
         }
     }
 
-    /// active the menu, this will select the first item
+    /// Sets the orientation for the menu.
+    ///
+    /// Default orientation is [MenuOrientation::Right].
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use tui_menu::{MenuState, MenuItem, MenuOrientation};
+    ///
+    /// let mut state = MenuState::<&'static str>::new(vec![
+    ///     MenuItem::item("Foo", "label_foo"),
+    ///     MenuItem::group("Group", vec![
+    ///         MenuItem::item("Bar 1", "label_bar_1"),
+    ///         MenuItem::item("Bar 2", "label_bar_1"),
+    ///     ])
+    /// ]).set_orientation(MenuOrientation::Left);
+    ///
+    ///
+    /// ```
+    ///
+    /// This is a fluent setter method which must be chained or used as it consumes self
+    #[must_use = "method moves the value of self and returns the modified value"]
+    pub const fn set_orientation(mut self, orientation: MenuOrientation) -> Self {
+        self.orientation = orientation;
+        self
+    }
+
+    /// activate the menu, this will select the first item
     ///
     /// # Example
     ///
@@ -197,7 +235,7 @@ impl<T: Clone> MenuState<T> {
     /// This behavior is reversed when orientation is set to `Orientation::Left`.
     pub fn left(&mut self) {
         if self.active_depth() == 0 {
-            return;
+            // do nothing
         } else if self.active_depth() == 1 {
             self.prev()
         } else if self.orientation.is_right() {
@@ -246,7 +284,7 @@ impl<T: Clone> MenuState<T> {
     /// This behavior is reversed when orientation is set to `Orientation::Left`.
     pub fn right(&mut self) {
         if self.active_depth() == 0 {
-            return;
+            // do nothing
         } else if self.active_depth() == 1 {
             self.next()
         } else if self.orientation.is_left() {
@@ -528,7 +566,7 @@ impl<T> MenuItem<T> {
     }
 }
 
-/// Widget focos on display/render
+/// Widget to display/render
 pub struct Menu<T> {
     /// default item style
     default_item_style: Style,
@@ -582,7 +620,7 @@ impl<T> Menu<T> {
         x: u16,
         y: u16,
         group: &[MenuItem<T>],
-        orientation: Orientation,
+        orientation: MenuOrientation,
         buf: &mut ratatui::buffer::Buffer,
     ) {
         let area = Rect::new(x, y, self.drop_down_width, group.len() as u16);
