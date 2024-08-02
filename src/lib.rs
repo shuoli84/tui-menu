@@ -20,7 +20,23 @@ pub struct MenuState<T> {
     root_item: MenuItem<T>,
     /// stores events generated in one frame
     events: Vec<MenuEvent<T>>,
-    drop_down_orientation_left: bool,
+    orientation: Orientation,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Orientation {
+    Left,
+    Right,
+}
+
+impl Orientation {
+    fn is_left(self) -> bool {
+        self == Orientation::Left
+    }
+
+    fn is_right(self) -> bool {
+        self == Orientation::Right
+    }
 }
 
 impl<T: Clone> MenuState<T> {
@@ -49,7 +65,7 @@ impl<T: Clone> MenuState<T> {
                 is_highlight: true,
             },
             events: Default::default(),
-            drop_down_orientation_left: true,
+            orientation: Orientation::Right,
         }
     }
 
@@ -177,25 +193,27 @@ impl<T: Clone> MenuState<T> {
     ///                   sub item 2  > sub sub item 2
     ///
     /// left pop "sub sub group"
+    ///
+    /// This behavior is reversed when orientation is set to `Orientation::Left`.
     pub fn left(&mut self) {
         if self.active_depth() == 0 {
             return;
         } else if self.active_depth() == 1 {
             self.prev()
-        } else if self.drop_down_orientation_left {
-            self.go_into();
-        } else {
+        } else if self.orientation.is_right() {
             self.go_back();
+        } else {
+            self.go_into();
         }
     }
 
     fn go_back(&mut self) {
         if self.active_depth() == 2 {
             self.pop();
-            if self.drop_down_orientation_left {
-                self.next();
-            } else {
+            if self.orientation.is_right() {
                 self.prev();
+            } else {
+                self.next();
             }
         } else {
             self.pop();
@@ -224,12 +242,14 @@ impl<T: Clone> MenuState<T> {
     ///                 > sub item 2 +
     /// right pushes "sub sub item 2". this differs from case 2 that
     /// current highlighted item can be expanded
+    ///
+    /// This behavior is reversed when orientation is set to `Orientation::Left`.
     pub fn right(&mut self) {
         if self.active_depth() == 0 {
             return;
         } else if self.active_depth() == 1 {
             self.next()
-        } else if self.drop_down_orientation_left {
+        } else if self.orientation.is_left() {
             self.go_back();
         } else {
             self.go_into();
@@ -242,10 +262,10 @@ impl<T: Clone> MenuState<T> {
                 // special handling, make menu navigation
                 // more productive
                 self.pop();
-                if self.drop_down_orientation_left {
-                    self.prev();
-                } else {
+                if self.orientation.is_right() {
                     self.next();
+                } else {
+                    self.prev();
                 }
             }
         } else {
@@ -562,7 +582,7 @@ impl<T> Menu<T> {
         x: u16,
         y: u16,
         group: &[MenuItem<T>],
-        left_orientation: bool,
+        orientation: Orientation,
         buf: &mut ratatui::buffer::Buffer,
     ) {
         let area = Rect::new(x, y, self.drop_down_width, group.len() as u16);
@@ -574,7 +594,7 @@ impl<T> Menu<T> {
             let is_active = item.is_highlight;
 
             buf.set_span(
-                x as u16,
+                x,
                 item_y,
                 &Span::styled(
                     item.name(),
@@ -589,23 +609,13 @@ impl<T> Menu<T> {
 
             // show children
             if is_active && !item.children.is_empty() {
-                if !left_orientation {
-                    self.render_drop_down(
-                        x + self.drop_down_width,
-                        item_y,
-                        &item.children,
-                        left_orientation,
-                        buf,
-                    );
+                let child_x = if orientation.is_right() {
+                    x + self.drop_down_width
                 } else {
-                    self.render_drop_down(
-                        x - self.drop_down_width,
-                        item_y,
-                        &item.children,
-                        left_orientation,
-                        buf,
-                    );
-                }
+                    x - self.drop_down_width
+                };
+
+                self.render_drop_down(child_x, item_y, &item.children, orientation, buf);
             }
         }
     }
@@ -616,7 +626,7 @@ impl<T> StatefulWidget for Menu<T> {
 
     fn render(self, area: Rect, buf: &mut ratatui::buffer::Buffer, state: &mut Self::State) {
         let mut spans = vec![];
-        let mut x_pos = usize::from(area.x);
+        let mut x_pos = area.x;
         let y_pos = area.y;
 
         for (idx, item) in state.root_item.children.iter().enumerate() {
@@ -628,38 +638,35 @@ impl<T> StatefulWidget for Menu<T> {
             };
             let has_children = !item.children.is_empty();
 
-            let group_x_pos = x_pos;
+            let group_x_pos = {
+                if state.orientation.is_right() {
+                    x_pos
+                } else {
+                    let name_len = u16::try_from(item.name.len()).expect("name should be short");
+                    x_pos - self.drop_down_width + name_len
+                }
+            };
+
             let span = Span::styled(item.name(), item_style);
-            x_pos += span.width();
+            x_pos += u16::try_from(span.width()).expect("span should be short");
             spans.push(span);
 
             if has_children && is_highlight {
-                if !state.drop_down_orientation_left {
-                    self.render_drop_down(
-                        group_x_pos as u16,
-                        y_pos as u16 + 1,
-                        &item.children,
-                        false,
-                        buf,
-                    );
-                } else {
-                    self.render_drop_down(
-                        (group_x_pos as usize - self.drop_down_width as usize + item.name.len())
-                            as u16,
-                        y_pos as u16 + 1,
-                        &item.children,
-                        true,
-                        buf,
-                    );
-                }
+                self.render_drop_down(
+                    group_x_pos,
+                    y_pos + 1,
+                    &item.children,
+                    state.orientation,
+                    buf,
+                );
             }
 
             if idx < state.root_item.children.len() - 1 {
                 let span = Span::raw(" | ");
-                x_pos += span.width();
+                x_pos += u16::try_from(span.width()).expect("span should be short");
                 spans.push(span);
             }
         }
-        buf.set_line(area.x, area.y, &Line::from(spans), x_pos as u16);
+        buf.set_line(area.x, area.y, &Line::from(spans), x_pos);
     }
 }
