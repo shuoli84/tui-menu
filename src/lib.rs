@@ -237,10 +237,15 @@ impl<T: Clone> MenuState<T> {
         } else if self.active_depth() == 1 {
             self.prev()
         } else if self.orientation.is_right() {
-            if let Some(children) = self.highlight().and_then(|item| item.children.get(0)) {
-                if children.is_on_other_side {
-                    self.go_into();
-                    panic!();
+            if let Some(item) = self.highlight() {
+                if let Some(children_item) = item.children.get(0) {
+                    if children_item.is_on_other_side {
+                        self.go_into();
+                        return;
+                    }
+                }
+
+                if item.is_on_other_side {
                     return;
                 }
             }
@@ -314,6 +319,33 @@ impl<T: Clone> MenuState<T> {
         } else if self.active_depth() == 1 {
             self.next();
         } else if self.orientation.is_right() {
+            if let Some(item) = self.highlight() {
+                if let Some(children_item) = item.children.get(0) {
+                    if children_item.is_on_other_side {
+                        if self.active_depth() == 2 {
+                            // special handling, make menu navigation
+                            // more productive
+                            self.pop();
+                            self.next();
+                        } else {
+                            self.pop();
+                        }
+                        return;
+                    }
+                }
+
+                if item.is_on_other_side {
+                    if self.active_depth() == 2 {
+                        // special handling, make menu navigation
+                        // more productive
+                        self.pop();
+                        self.next();
+                    } else {
+                        self.pop();
+                    }
+                    return;
+                }
+            }
             self.go_into();
         } else {
             if let Some(item) = self.highlight() {
@@ -664,7 +696,7 @@ impl<T> Menu<T> {
         &self,
         area: Rect,
         group: &mut [MenuItem<T>],
-        drop_down_count: u16,
+        depth: u16,
         orientation: MenuOrientation,
         buf: &mut ratatui::buffer::Buffer,
     ) {
@@ -691,47 +723,49 @@ impl<T> Menu<T> {
 
             // show children
             if is_active && !item.children.is_empty() {
-                let area = if orientation.is_right() {
-                    Rect {
-                        x: area.x + self.drop_down_width,
-                        y: item_y,
-                        height: u16::try_from(item.children.len()).unwrap_or(u16::MAX),
-                        ..area
-                    }
-                    .clamp(buf.area)
-                } else {
-                    let x = if area.x < self.drop_down_width {
-                        // There's no space to render the drop-down on the left, so put it on another side
-                        // If this is the first one, there aren't any sides
+                let x = if orientation.is_right() {
+                    if buf
+                        .area()
+                        .width
+                        .saturating_sub(area.x + (self.drop_down_width))
+                        < self.drop_down_width
+                    {
+                        // There's no space to render the drop-down on the right, so put it on another side
                         item.children
                             .iter_mut()
                             .for_each(|item| item.is_on_other_side = true);
-                        area.x + (self.drop_down_width * (drop_down_count as u16))
+                        area.x.saturating_sub(self.drop_down_width)
+                    } else {
+                        // Render it on the right
+                        item.children
+                            .iter_mut()
+                            .for_each(|item| item.is_on_other_side = false);
+                        area.x.saturating_add(self.drop_down_width)
+                    }
+                } else {
+                    if area.x < self.drop_down_width {
+                        // There's no space to render the drop-down on the left, so put it on another side
+                        item.children
+                            .iter_mut()
+                            .for_each(|item| item.is_on_other_side = true);
+                        area.x.saturating_add(self.drop_down_width)
                     } else {
                         // Render it on the left
                         item.children
                             .iter_mut()
                             .for_each(|item| item.is_on_other_side = false);
-                        area.x
-                            .saturating_sub(self.drop_down_width * (drop_down_count as u16))
-                    };
-
-                    Rect {
-                        x,
-                        y: item_y,
-                        height: u16::try_from(item.children.len()).unwrap_or(u16::MAX),
-                        ..area
+                        area.x.saturating_sub(self.drop_down_width)
                     }
-                    .clamp(buf.area)
                 };
 
-                self.render_drop_down(
-                    area,
-                    &mut item.children,
-                    drop_down_count + 1,
-                    orientation,
-                    buf,
-                );
+                let area = Rect {
+                    x,
+                    y: item_y,
+                    height: u16::try_from(item.children.len()).unwrap_or(u16::MAX),
+                    width: self.drop_down_width,
+                }
+                .clamp(buf.area);
+                self.render_drop_down(area, &mut item.children, depth + 1, orientation, buf);
             }
         }
     }
@@ -766,13 +800,7 @@ impl<T> StatefulWidget for Menu<T> {
                     .clamp(*buf.area())
                 } else {
                     let name_len = u16::try_from(item.name.len()).expect("name should be short");
-                    let x = {
-                        if x_pos <= self.drop_down_width {
-                            0
-                        } else {
-                            x_pos - self.drop_down_width + name_len
-                        }
-                    };
+                    let x = x_pos.saturating_sub(self.drop_down_width) + name_len;
                     Rect {
                         x,
                         y: y_pos + 1,
