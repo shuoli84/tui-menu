@@ -69,6 +69,9 @@ impl<T: Clone> MenuState<T> {
                 // the root item marked as always highlight
                 // this makes highlight logic more consistent
                 is_highlight: true,
+                // the root item is always marked as not being on another side
+                // this makes logic more consistent
+                is_on_other_side: false,
             },
             events: Default::default(),
             orientation: MenuOrientation::Right,
@@ -234,20 +237,48 @@ impl<T: Clone> MenuState<T> {
         } else if self.active_depth() == 1 {
             self.prev()
         } else if self.orientation.is_right() {
+            if let Some(children) = self.highlight().and_then(|item| item.children.get(0)) {
+                if children.is_on_other_side {
+                    self.go_into();
+                    panic!();
+                    return;
+                }
+            }
+
             self.go_back();
         } else {
-            self.go_into();
+            if let Some(item) = self.highlight() {
+                if let Some(children_item) = item.children.get(0) {
+                    if children_item.is_on_other_side {
+                        return;
+                    }
+                }
+
+                if item.is_on_other_side {
+                    self.go_back();
+                    return;
+                }
+            }
+
+            if self.active_depth() == 2 {
+                if self.push().is_none() {
+                    // special handling, make menu navigation
+                    // more productive
+                    self.pop();
+                    self.prev();
+                }
+            } else {
+                self.push();
+            }
         }
     }
 
     fn go_back(&mut self) {
         if self.active_depth() == 2 {
+            // special handling, make menu navigation
+            // more productive
             self.pop();
-            if self.orientation.is_right() {
-                self.prev();
-            } else {
-                self.next();
-            }
+            self.prev();
         } else {
             self.pop();
         }
@@ -281,11 +312,31 @@ impl<T: Clone> MenuState<T> {
         if self.active_depth() == 0 {
             // do nothing
         } else if self.active_depth() == 1 {
-            self.next()
-        } else if self.orientation.is_left() {
-            self.go_back();
-        } else {
+            self.next();
+        } else if self.orientation.is_right() {
             self.go_into();
+        } else {
+            if let Some(item) = self.highlight() {
+                if let Some(children_item) = item.children.get(0) {
+                    if children_item.is_on_other_side {
+                        self.go_into();
+                        return;
+                    }
+                }
+
+                if item.is_on_other_side {
+                    self.go_into();
+                    return;
+                }
+            }
+            if self.active_depth() == 2 {
+                // special handling, make menu navigation
+                // more productive
+                self.pop();
+                self.next();
+            } else {
+                self.pop();
+            }
         }
     }
 
@@ -295,11 +346,7 @@ impl<T: Clone> MenuState<T> {
                 // special handling, make menu navigation
                 // more productive
                 self.pop();
-                if self.orientation.is_right() {
-                    self.next();
-                } else {
-                    self.prev();
-                }
+                self.next();
             }
         } else {
             self.push();
@@ -395,6 +442,7 @@ pub struct MenuItem<T> {
     pub data: Option<T>,
     children: Vec<MenuItem<T>>,
     is_highlight: bool,
+    is_on_other_side: bool,
 }
 
 impl<T> MenuItem<T> {
@@ -404,6 +452,7 @@ impl<T> MenuItem<T> {
             name: name.into(),
             data: Some(data),
             is_highlight: false,
+            is_on_other_side: false,
             children: vec![],
         }
     }
@@ -427,6 +476,7 @@ impl<T> MenuItem<T> {
             name: name.into(),
             data: None,
             is_highlight: false,
+            is_on_other_side: false,
             children,
         }
     }
@@ -612,22 +662,21 @@ impl<T> Menu<T> {
     /// render a item group in drop down
     fn render_drop_down(
         &self,
-        x: u16,
-        y: u16,
-        group: &[MenuItem<T>],
+        area: Rect,
+        group: &mut [MenuItem<T>],
+        drop_down_count: u16,
         orientation: MenuOrientation,
         buf: &mut ratatui::buffer::Buffer,
     ) {
-        let area = Rect::new(x, y, self.drop_down_width, group.len() as u16);
         Clear.render(area, buf);
         buf.set_style(area, self.drop_down_style);
 
-        for (idx, item) in group.iter().enumerate() {
-            let item_y = y + idx as u16;
+        for (idx, item) in group.iter_mut().enumerate() {
+            let item_y = area.y + idx as u16;
             let is_active = item.is_highlight;
 
             buf.set_span(
-                x,
+                area.x,
                 item_y,
                 &Span::styled(
                     item.name(),
@@ -642,13 +691,47 @@ impl<T> Menu<T> {
 
             // show children
             if is_active && !item.children.is_empty() {
-                let child_x = if orientation.is_right() {
-                    x + self.drop_down_width
+                let area = if orientation.is_right() {
+                    Rect {
+                        x: area.x + self.drop_down_width,
+                        y: item_y,
+                        height: u16::try_from(item.children.len()).unwrap_or(u16::MAX),
+                        ..area
+                    }
+                    .clamp(buf.area)
                 } else {
-                    x - self.drop_down_width
+                    let x = if area.x < self.drop_down_width {
+                        // There's no space to render the drop-down on the left, so put it on another side
+                        // If this is the first one, there aren't any sides
+                        item.children
+                            .iter_mut()
+                            .for_each(|item| item.is_on_other_side = true);
+                        area.x + (self.drop_down_width * (drop_down_count as u16))
+                    } else {
+                        // Render it on the left
+                        item.children
+                            .iter_mut()
+                            .for_each(|item| item.is_on_other_side = false);
+                        area.x
+                            .saturating_sub(self.drop_down_width * (drop_down_count as u16))
+                    };
+
+                    Rect {
+                        x,
+                        y: item_y,
+                        height: u16::try_from(item.children.len()).unwrap_or(u16::MAX),
+                        ..area
+                    }
+                    .clamp(buf.area)
                 };
 
-                self.render_drop_down(child_x, item_y, &item.children, orientation, buf);
+                self.render_drop_down(
+                    area,
+                    &mut item.children,
+                    drop_down_count + 1,
+                    orientation,
+                    buf,
+                );
             }
         }
     }
@@ -662,7 +745,8 @@ impl<T> StatefulWidget for Menu<T> {
         let mut x_pos = area.x;
         let y_pos = area.y;
 
-        for (idx, item) in state.root_item.children.iter().enumerate() {
+        let root_items_len = state.root_item.children.len();
+        for (idx, item) in state.root_item.children.iter_mut().enumerate() {
             let is_highlight = item.is_highlight;
             let item_style = if is_highlight {
                 self.highlight_item_style
@@ -671,30 +755,49 @@ impl<T> StatefulWidget for Menu<T> {
             };
             let has_children = !item.children.is_empty();
 
-            let group_x_pos = {
+            let drop_down_area = {
                 if state.orientation.is_right() {
-                    x_pos
+                    Rect {
+                        x: x_pos,
+                        y: y_pos + 1,
+                        width: self.drop_down_width,
+                        height: u16::try_from(item.children.len()).unwrap_or(u16::MAX),
+                    }
+                    .clamp(*buf.area())
                 } else {
                     let name_len = u16::try_from(item.name.len()).expect("name should be short");
-                    x_pos - self.drop_down_width + name_len
+                    let x = {
+                        if x_pos <= self.drop_down_width {
+                            0
+                        } else {
+                            x_pos - self.drop_down_width + name_len
+                        }
+                    };
+                    Rect {
+                        x,
+                        y: y_pos + 1,
+                        width: self.drop_down_width,
+                        height: u16::try_from(item.children.len()).unwrap_or(u16::MAX),
+                    }
+                    .clamp(*buf.area())
                 }
             };
 
-            let span = Span::styled(item.name(), item_style);
-            x_pos += u16::try_from(span.width()).expect("span should be short");
-            spans.push(span);
-
             if has_children && is_highlight {
                 self.render_drop_down(
-                    group_x_pos,
-                    y_pos + 1,
-                    &item.children,
+                    drop_down_area,
+                    &mut item.children,
+                    1,
                     state.orientation,
                     buf,
                 );
             }
 
-            if idx < state.root_item.children.len() - 1 {
+            let span = Span::styled(item.name(), item_style);
+            x_pos += u16::try_from(span.width()).expect("span should be short");
+            spans.push(span);
+
+            if idx < root_items_len - 1 {
                 let span = Span::raw(" | ");
                 x_pos += u16::try_from(span.width()).expect("span should be short");
                 spans.push(span);
