@@ -10,8 +10,6 @@ on:
   push:
     branches:
       - main
-  pull_request:
-
 jobs:
   release-plz:
     name: Release-plz
