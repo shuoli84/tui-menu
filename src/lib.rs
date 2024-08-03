@@ -24,16 +24,11 @@ pub struct MenuState<T> {
 }
 
 /// Orientation of [Menu] which is configurable in [MenuState]
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
 pub enum MenuOrientation {
     Left,
+    #[default]
     Right,
-}
-
-impl Default for MenuOrientation {
-    fn default() -> Self {
-        Self::Right
-    }
 }
 
 impl MenuOrientation {
