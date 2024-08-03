@@ -56,28 +56,31 @@ impl App {
     fn new() -> Self {
         Self {
             content: String::new(),
-            menu: MenuState::new(vec![
-                MenuItem::group(
-                    "Group",
-                    vec![
-                        MenuItem::group("Nested", vec![
-                            MenuItem::group("Nested 1", vec![
-                                MenuItem::group("Nested 2", vec![
-                                    MenuItem::group("Nested 3", vec![
-                                        MenuItem::group("Nested 4", vec![
-                                            MenuItem::group("Nested 5", vec![
-                                                MenuItem::group("Nested 6", vec![
-                                                ])
-                                            ])
-                                        ])
-                                    ])
-                                ])
-                            ])
-                        ]),
-                        MenuItem::item("Exit", Action::Exit)
-                    ],
-                ),
-            ]),
+            menu: MenuState::new(vec![MenuItem::group(
+                "Group",
+                vec![
+                    MenuItem::group(
+                        "Nested",
+                        vec![MenuItem::group(
+                            "Nested 1",
+                            vec![MenuItem::group(
+                                "Nested 2",
+                                vec![MenuItem::group(
+                                    "Nested 3",
+                                    vec![MenuItem::group(
+                                        "Nested 4",
+                                        vec![MenuItem::group(
+                                            "Nested 5",
+                                            vec![MenuItem::group("Nested 6", vec![])],
+                                        )],
+                                    )],
+                                )],
+                            )],
+                        )],
+                    ),
+                    MenuItem::item("Exit", Action::Exit),
+                ],
+            )]),
         }
     }
 }
