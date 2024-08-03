@@ -523,7 +523,7 @@ impl<T> Menu<T> {
         self
     }
 
-    /// render a item group in drop down
+    /// render an item group in drop down
     fn render_drop_down(
         &self,
         x: u16,
@@ -532,7 +532,15 @@ impl<T> Menu<T> {
         buf: &mut ratatui::buffer::Buffer,
         _depth: usize,
     ) {
+        let x = if x + self.drop_down_width < buf.area().right() {
+            // Shift drawing area back to visible rect
+            x
+        } else {
+            buf.area().width - self.drop_down_width
+        };
+
         let area = Rect::new(x, y, self.drop_down_width, group.len() as u16);
+
         Clear.render(area, buf);
         buf.set_style(area, self.drop_down_style);
 
@@ -579,7 +587,7 @@ impl<T> StatefulWidget for Menu<T> {
 
     fn render(self, area: Rect, buf: &mut ratatui::buffer::Buffer, state: &mut Self::State) {
         let mut spans = vec![];
-        let mut x_pos = 0;
+        let mut x_pos = area.x;
         let y_pos = area.y;
 
         for (idx, item) in state.root_item.children.iter().enumerate() {
@@ -593,19 +601,19 @@ impl<T> StatefulWidget for Menu<T> {
 
             let group_x_pos = x_pos;
             let span = Span::styled(item.name(), item_style);
-            x_pos += span.width();
+            x_pos += span.width() as u16;
             spans.push(span);
 
             if has_children && is_highlight {
-                self.render_drop_down(group_x_pos as u16, y_pos + 1, &item.children, buf, 1);
+                self.render_drop_down(group_x_pos, y_pos + 1, &item.children, buf, 1);
             }
 
             if idx < state.root_item.children.len() - 1 {
                 let span = Span::raw(" | ");
-                x_pos += span.width();
+                x_pos += span.width() as u16;
                 spans.push(span);
             }
         }
-        buf.set_line(area.x, area.y, &Line::from(spans), x_pos as u16);
+        buf.set_line(area.x, area.y, &Line::from(spans), x_pos);
     }
 }
