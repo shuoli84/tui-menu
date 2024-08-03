@@ -162,7 +162,11 @@ impl Widget for &mut App {
             .block(Block::bordered().title("Content").on_black())
             .render(main, buf);
 
-        "tui-menu".bold().blue().to_centered_line().render(top, buf);
+        "tui-menu"
+            .bold()
+            .blue()
+            .into_centered_line()
+            .render(top, buf);
 
         // draw menu last, so it renders on top of other content
         Menu::new().render(top, buf, &mut self.menu);
