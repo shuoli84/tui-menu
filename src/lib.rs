@@ -110,7 +110,7 @@ impl<T: Clone> MenuState<T> {
                 .and_then(|child| child.highlight_child_index())
             {
                 // case 1
-                Some(idx) if idx == 0 => {
+                Some(0) => {
                     self.pop();
                 }
                 _ => {
@@ -262,10 +262,8 @@ impl<T: Clone> MenuState<T> {
         if let Some(item) = self.root_item.highlight_mut() {
             if !item.children.is_empty() {
                 self.push();
-            } else {
-                if let Some(ref data) = item.data {
-                    self.events.push(MenuEvent::Selected(data.clone()));
-                }
+            } else if let Some(ref data) = item.data {
+                self.events.push(MenuEvent::Selected(data.clone()));
             }
         }
     }
@@ -361,7 +359,7 @@ impl<T> MenuItem<T> {
     /// highlight first child
     fn highlight_first_child(&mut self) -> Option<()> {
         if !self.children.is_empty() {
-            if let Some(it) = self.children.iter_mut().nth(0) {
+            if let Some(it) = self.children.get_mut(0) {
                 it.is_highlight = true;
             }
             Some(())
@@ -468,8 +466,7 @@ impl<T> MenuItem<T> {
         let mut last_but_one = self;
         while last_but_one
             .highlight_child_mut()
-            .map(|x| x.highlight_child_mut())
-            .flatten()
+            .and_then(|x| x.highlight_child_mut())
             .is_some()
         {
             last_but_one = last_but_one.highlight_child_mut().unwrap();
@@ -533,7 +530,7 @@ impl<T> Menu<T> {
         y: u16,
         group: &[MenuItem<T>],
         buf: &mut ratatui::buffer::Buffer,
-        depth: usize,
+        _depth: usize,
     ) {
         let area = Rect::new(x, y, self.drop_down_width, group.len() as u16);
         Clear.render(area, buf);
@@ -544,7 +541,7 @@ impl<T> Menu<T> {
             let is_active = item.is_highlight;
 
             buf.set_span(
-                x as u16,
+                x,
                 item_y,
                 &Span::styled(
                     item.name(),
@@ -564,10 +561,16 @@ impl<T> Menu<T> {
                     item_y,
                     &item.children,
                     buf,
-                    depth + 1,
+                    _depth + 1,
                 );
             }
         }
+    }
+}
+
+impl<T> Default for Menu<T> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -594,7 +597,7 @@ impl<T> StatefulWidget for Menu<T> {
             spans.push(span);
 
             if has_children && is_highlight {
-                self.render_drop_down(group_x_pos as u16, y_pos as u16 + 1, &item.children, buf, 1);
+                self.render_drop_down(group_x_pos as u16, y_pos + 1, &item.children, buf, 1);
             }
 
             if idx < state.root_item.children.len() - 1 {
