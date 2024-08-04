@@ -530,20 +530,36 @@ impl<T> Menu<T> {
         y: u16,
         group: &[MenuItem<T>],
         buf: &mut ratatui::buffer::Buffer,
-        _depth: usize,
+        depth: usize,
     ) {
-        let x = if x + self.drop_down_width < buf.area().right() {
-            // Shift drawing area back to visible rect
-            x
+        let (x, y, drop_down_width) = if x + self.drop_down_width <= buf.area().right() {
+            // the drawing area is large enough
+            (x, y, self.drop_down_width)
         } else {
-            buf.area().width - self.drop_down_width
+            // the drawing area is not large enough, so we need to shift the rect
+            let w = if buf.area.right() >= x + self.drop_down_width {
+                self.drop_down_width
+            } else {
+                buf.area.width.min(self.drop_down_width)
+            };
+            let y = if depth == 1 {
+                // Do not shift down for first layer
+                y
+            } else {
+                y + 1
+            };
+            (buf.area.right() - w, y, w)
         };
 
-        let area = Rect::new(x, y, self.drop_down_width, group.len() as u16);
+        let area = Rect::new(x, y, drop_down_width, group.len() as u16);
+
+        // clamp to ensure we draw in areas
+        let area = area.clamp(*buf.area());
 
         Clear.render(area, buf);
         buf.set_style(area, self.drop_down_style);
 
+        let mut active_group: Option<_> = None;
         for (idx, item) in group.iter().enumerate() {
             let item_y = y + idx as u16;
             let is_active = item.is_highlight;
@@ -559,19 +575,24 @@ impl<T> Menu<T> {
                         self.default_item_style
                     },
                 ),
-                self.drop_down_width,
+                drop_down_width,
             );
 
             // show children
             if is_active && !item.children.is_empty() {
-                self.render_drop_down(
-                    x + self.drop_down_width,
-                    item_y,
-                    &item.children,
-                    buf,
-                    _depth + 1,
-                );
+                active_group = Some((x + drop_down_width, item_y, item));
             }
+        }
+
+        // draw sub group at the end to ensure its content not shadowed
+        if let Some((x, y, item)) = active_group {
+            self.render_drop_down(
+                x,
+                y,
+                &item.children,
+                buf,
+                depth + 1,
+            );
         }
     }
 }
@@ -586,6 +607,8 @@ impl<T> StatefulWidget for Menu<T> {
     type State = MenuState<T>;
 
     fn render(self, area: Rect, buf: &mut ratatui::buffer::Buffer, state: &mut Self::State) {
+        let area = area.clamp(*buf.area());
+
         let mut spans = vec![];
         let mut x_pos = area.x;
         let y_pos = area.y;
