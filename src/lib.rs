@@ -38,15 +38,13 @@ impl<T: Clone> MenuState<T> {
     /// ]);
     /// ```
     pub fn new(items: Vec<MenuItem<T>>) -> Self {
+        let mut root_item = MenuItem::group("root", items);
+        // the root item marked as always highlight
+        // this makes highlight logic more consistent
+        root_item.is_highlight = true;
+
         Self {
-            root_item: MenuItem {
-                name: "root".into(),
-                data: None,
-                children: items,
-                // the root item marked as always highlight
-                // this makes highlight logic more consistent
-                is_highlight: true,
-            },
+            root_item,
             events: Default::default(),
         }
     }
@@ -313,7 +311,7 @@ pub struct MenuItem<T> {
 }
 
 impl<T> MenuItem<T> {
-    /// helper function to create an non group item.
+    /// helper function to create a non group item.
     pub fn item(name: impl Into<Cow<'static, str>>, data: T) -> Self {
         Self {
             name: name.into(),
@@ -458,7 +456,7 @@ impl<T> MenuItem<T> {
 
     /// last but one layer in highlight
     fn highlight_last_but_one(&mut self) -> Option<&mut Self> {
-        // if self is not highlighted or there is no highlighed child, return None
+        // if self is not highlighted or there is no highlighted child, return None
         if !self.is_highlight || self.highlight_child_mut().is_none() {
             return None;
         }
@@ -473,17 +471,40 @@ impl<T> MenuItem<T> {
         }
         Some(last_but_one)
     }
+
+    /// get current render depth
+    /// NOTE: render depth is bottom up
+    fn render_depth(&self) -> u16 {
+        let mut child_depth = 0u16;
+        for child in self.children.iter() {
+            if child.is_highlight {
+                child_depth = child.render_depth();
+                break;
+            }
+        }
+
+        let self_depth = if self.is_highlight && !self.children.is_empty() {
+            // if self is a group, and it is highlighted, it's children will be shown, so
+            // the depth is 1
+            1
+        } else {
+            // otherwise, either it is an item, or it's children not showed, treat the depth as 0
+            0
+        };
+
+        child_depth + self_depth
+    }
 }
 
-/// Widget focos on display/render
+/// Widget focus on display/render
 pub struct Menu<T> {
-    /// default item style
+    /// style for default item style
     default_item_style: Style,
-    /// style when item is highlighted
+    /// style for highlighted item
     highlight_item_style: Style,
-    /// width for drop down group panel
+    /// width for drop down panel
     drop_down_width: u16,
-    /// style for the drop down panel
+    /// style for drop down panel
     drop_down_style: Style,
     _priv: PhantomData<T>,
 }
@@ -530,26 +551,25 @@ impl<T> Menu<T> {
         y: u16,
         group: &[MenuItem<T>],
         buf: &mut ratatui::buffer::Buffer,
-        depth: usize,
     ) {
-        let (x, y, drop_down_width) = if x + self.drop_down_width <= buf.area().right() {
-            // the drawing area is large enough
-            (x, y, self.drop_down_width)
-        } else {
-            // the drawing area is not large enough, so we need to shift the rect
-            let w = if buf.area.right() >= x + self.drop_down_width {
-                self.drop_down_width
-            } else {
-                buf.area.width.min(self.drop_down_width)
-            };
-            let y = if depth == 1 {
-                // Do not shift down for first layer
-                y
-            } else {
-                y + 1
-            };
-            (buf.area.right() - w, y, w)
-        };
+        // get the maximum render_depth for group
+        let render_depth = group
+            .iter()
+            .map(|item| item.render_depth())
+            .max()
+            .unwrap_or_default();
+
+        // prevent calculation issue if canvas is narrow
+        let drop_down_width = self.drop_down_width.min(buf.area.width);
+
+        // calculate the maximum x, leaving enough space for deeper items
+        // drawing area:
+        // |  a |  b   |            c                |        d       |
+        // | .. |  me  |  child_1  |  child_of_child |  nothing here  |
+        // x_max is the x when d is 0
+        let b_plus_c = (render_depth + 1) * drop_down_width;
+        let x_max = buf.area().right().saturating_sub(b_plus_c);
+        let x = x.min(x_max);
 
         let area = Rect::new(x, y, drop_down_width, group.len() as u16);
 
@@ -557,6 +577,7 @@ impl<T> Menu<T> {
         let area = area.clamp(*buf.area());
 
         Clear.render(area, buf);
+
         buf.set_style(area, self.drop_down_style);
 
         let mut active_group: Option<_> = None;
@@ -564,11 +585,21 @@ impl<T> Menu<T> {
             let item_y = y + idx as u16;
             let is_active = item.is_highlight;
 
+            let item_name = item.name();
+
+            // make style apply to whole line by make name whole line
+            let mut item_name = format!("{: <width$}", item_name, width = drop_down_width as usize);
+
+            if !item.children.is_empty() {
+                item_name.pop();
+                item_name.push('>');
+            }
+
             buf.set_span(
                 x,
                 item_y,
                 &Span::styled(
-                    item.name(),
+                    item_name,
                     if is_active {
                         self.highlight_item_style
                     } else {
@@ -578,15 +609,14 @@ impl<T> Menu<T> {
                 drop_down_width,
             );
 
-            // show children
             if is_active && !item.children.is_empty() {
                 active_group = Some((x + drop_down_width, item_y, item));
             }
         }
 
-        // draw sub group at the end to ensure its content not shadowed
+        // draw at the end to ensure its content above all items in current level
         if let Some((x, y, item)) = active_group {
-            self.render_drop_down(x, y, &item.children, buf, depth + 1);
+            self.render_drop_down(x, y, &item.children, buf);
         }
     }
 }
@@ -622,7 +652,7 @@ impl<T> StatefulWidget for Menu<T> {
             spans.push(span);
 
             if has_children && is_highlight {
-                self.render_drop_down(group_x_pos, y_pos + 1, &item.children, buf, 1);
+                self.render_drop_down(group_x_pos, y_pos + 1, &item.children, buf);
             }
 
             if idx < state.root_item.children.len() - 1 {
