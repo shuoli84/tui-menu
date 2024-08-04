@@ -586,13 +586,7 @@ impl<T> Menu<T> {
 
         // draw sub group at the end to ensure its content not shadowed
         if let Some((x, y, item)) = active_group {
-            self.render_drop_down(
-                x,
-                y,
-                &item.children,
-                buf,
-                depth + 1,
-            );
+            self.render_drop_down(x, y, &item.children, buf, depth + 1);
         }
     }
 }
