@@ -146,7 +146,9 @@ impl<T: Clone> MenuState<T> {
     ///
     /// down highlights "sub item 2"
     pub fn down(&mut self) {
-        if self.active_depth() == 1 {
+        if self.active_depth() == 0 {
+            // do nothing
+        } else if self.active_depth() == 1 {
             self.push();
         } else {
             self.next();
@@ -176,7 +178,9 @@ impl<T: Clone> MenuState<T> {
     ///
     /// left pop "sub sub group"
     pub fn left(&mut self) {
-        if self.active_depth() == 1 {
+        if self.active_depth() == 0 {
+            // do nothing
+        } else if self.active_depth() == 1 {
             self.prev();
         } else if self.active_depth() == 2 {
             self.pop();
