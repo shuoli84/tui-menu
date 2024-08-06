@@ -1,11 +1,14 @@
 use color_eyre::config::HookBuilder;
-use crossterm::{
-    event::{self, Event, KeyCode},
-    execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
-};
 use ratatui::{
-    prelude::*,
+    crossterm::{
+        event::{self, Event, KeyCode},
+        execute,
+        terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    },
+    prelude::{
+        Backend, Buffer, Constraint, CrosstermBackend, Layout, Rect, StatefulWidget, Stylize,
+        Terminal, Widget,
+    },
     widgets::{Block, Paragraph},
 };
 use std::io::{self, stdout, Stdout};
