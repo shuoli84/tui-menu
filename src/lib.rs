@@ -174,7 +174,9 @@ impl<T: Clone> MenuState<T> {
     ///
     /// left pop "sub sub group"
     pub fn left(&mut self) {
-        if self.active_depth() == 1 {
+        if self.active_depth() == 0 {
+            // do nothing
+        } else if self.active_depth() == 1 {
             self.prev();
         } else if self.active_depth() == 2 {
             self.pop();
@@ -207,7 +209,9 @@ impl<T: Clone> MenuState<T> {
     /// right pushes "sub sub item 2". this differs from case 2 that
     /// current highlighted item can be expanded
     pub fn right(&mut self) {
-        if self.active_depth() == 1 {
+        if self.active_depth() == 0 {
+            // do nothing
+        } else if self.active_depth() == 1 {
             self.next();
         } else if self.active_depth() == 2 {
             if self.push().is_none() {
