@@ -38,15 +38,13 @@ impl<T: Clone> MenuState<T> {
     /// ]);
     /// ```
     pub fn new(items: Vec<MenuItem<T>>) -> Self {
+        let mut root_item = MenuItem::group("root", items);
+        // the root item marked as always highlight
+        // this makes highlight logic more consistent
+        root_item.is_highlight = true;
+
         Self {
-            root_item: MenuItem {
-                name: "root".into(),
-                data: None,
-                children: items,
-                // the root item marked as always highlight
-                // this makes highlight logic more consistent
-                is_highlight: true,
-            },
+            root_item,
             events: Default::default(),
         }
     }
@@ -78,7 +76,7 @@ impl<T: Clone> MenuState<T> {
 
     /// trigger up movement
     /// NOTE: this action tries to do intuitive movement,
-    /// which means logicially it is not consistent, e.g:
+    /// which means logically it is not consistent, e.g:
     /// case 1:
     ///    group 1        group 2        group 3
     ///                 > sub item 1
@@ -256,6 +254,33 @@ impl<T: Clone> MenuState<T> {
         depth
     }
 
+    /// How many dropdown to render, including preview
+    /// NOTE: If current group contains sub-group, in order to keep ui consistent,
+    ///   even the sub-group not selected, its space is counted
+    fn dropdown_count(&self) -> u16 {
+        let mut node = &self.root_item;
+        let mut count = 0;
+        loop {
+            match node.highlight_child() {
+                None => {
+                    return count;
+                }
+                Some(highlight_child) => {
+                    if highlight_child.is_group() {
+                        // highlighted child is a group, then it's children is previewed
+                        count += 1;
+                    } else if node.children.iter().any(|c| c.is_group()) {
+                        // if highlighted item is not a group, but if sibling contains group
+                        // in order to keep ui consistency, also count it
+                        count += 1;
+                    }
+
+                    node = highlight_child;
+                }
+            }
+        }
+    }
+
     /// select current highlight item, if it has children
     /// then push
     pub fn select(&mut self) {
@@ -313,7 +338,7 @@ pub struct MenuItem<T> {
 }
 
 impl<T> MenuItem<T> {
-    /// helper function to create an non group item.
+    /// helper function to create a non group item.
     pub fn item(name: impl Into<Cow<'static, str>>, data: T) -> Self {
         Self {
             name: name.into(),
@@ -344,6 +369,12 @@ impl<T> MenuItem<T> {
             is_highlight: false,
             children,
         }
+    }
+
+    #[cfg(test)]
+    fn with_highlight(mut self, highlight: bool) -> Self {
+        self.is_highlight = highlight;
+        self
     }
 
     /// whether this item is group
@@ -458,7 +489,7 @@ impl<T> MenuItem<T> {
 
     /// last but one layer in highlight
     fn highlight_last_but_one(&mut self) -> Option<&mut Self> {
-        // if self is not highlighted or there is no highlighed child, return None
+        // if self is not highlighted or there is no highlighted child, return None
         if !self.is_highlight || self.highlight_child_mut().is_none() {
             return None;
         }
@@ -475,15 +506,15 @@ impl<T> MenuItem<T> {
     }
 }
 
-/// Widget focos on display/render
+/// Widget focus on display/render
 pub struct Menu<T> {
-    /// default item style
+    /// style for default item style
     default_item_style: Style,
-    /// style when item is highlighted
+    /// style for highlighted item
     highlight_item_style: Style,
-    /// width for drop down group panel
+    /// width for drop down panel
     drop_down_width: u16,
-    /// style for the drop down panel
+    /// style for drop down panel
     drop_down_style: Style,
     _priv: PhantomData<T>,
 }
@@ -523,47 +554,74 @@ impl<T> Menu<T> {
         self
     }
 
-    /// render a item group in drop down
-    fn render_drop_down(
+    /// render an item group in drop down
+    fn render_dropdown(
         &self,
         x: u16,
         y: u16,
         group: &[MenuItem<T>],
         buf: &mut ratatui::buffer::Buffer,
-        _depth: usize,
+        dropdown_count_to_go: u16, // including current, it is not drawn yet
     ) {
-        let area = Rect::new(x, y, self.drop_down_width, group.len() as u16);
+        // prevent calculation issue if canvas is narrow
+        let drop_down_width = self.drop_down_width.min(buf.area.width);
+
+        // calculate the maximum x, leaving enough space for deeper items
+        // drawing area:
+        // |  a |  b   |            c                |        d       |
+        // | .. |  me  |  child_1  |  child_of_child |  nothing here  |
+        // x_max is the x when d is 0
+        let b_plus_c = dropdown_count_to_go * drop_down_width;
+        let x_max = buf.area().right().saturating_sub(b_plus_c);
+
+        let x = x.min(x_max);
+
+        let area = Rect::new(x, y, drop_down_width, group.len() as u16);
+
+        // clamp to ensure we draw in areas
+        let area = area.clamp(*buf.area());
+
         Clear.render(area, buf);
+
         buf.set_style(area, self.drop_down_style);
 
+        let mut active_group: Option<_> = None;
         for (idx, item) in group.iter().enumerate() {
             let item_y = y + idx as u16;
             let is_active = item.is_highlight;
+
+            let item_name = item.name();
+
+            // make style apply to whole line by make name whole line
+            let mut item_name = format!("{: <width$}", item_name, width = drop_down_width as usize);
+
+            if !item.children.is_empty() {
+                item_name.pop();
+                item_name.push('>');
+            }
 
             buf.set_span(
                 x,
                 item_y,
                 &Span::styled(
-                    item.name(),
+                    item_name,
                     if is_active {
                         self.highlight_item_style
                     } else {
                         self.default_item_style
                     },
                 ),
-                self.drop_down_width,
+                drop_down_width,
             );
 
-            // show children
             if is_active && !item.children.is_empty() {
-                self.render_drop_down(
-                    x + self.drop_down_width,
-                    item_y,
-                    &item.children,
-                    buf,
-                    _depth + 1,
-                );
+                active_group = Some((x + drop_down_width, item_y, item));
             }
+        }
+
+        // draw at the end to ensure its content above all items in current level
+        if let Some((x, y, item)) = active_group {
+            self.render_dropdown(x, y, &item.children, buf, dropdown_count_to_go - 1);
         }
     }
 }
@@ -574,13 +632,17 @@ impl<T> Default for Menu<T> {
     }
 }
 
-impl<T> StatefulWidget for Menu<T> {
+impl<T: Clone> StatefulWidget for Menu<T> {
     type State = MenuState<T>;
 
     fn render(self, area: Rect, buf: &mut ratatui::buffer::Buffer, state: &mut Self::State) {
+        let area = area.clamp(*buf.area());
+
         let mut spans = vec![];
-        let mut x_pos = 0;
+        let mut x_pos = area.x;
         let y_pos = area.y;
+
+        let dropdown_count = state.dropdown_count();
 
         for (idx, item) in state.root_item.children.iter().enumerate() {
             let is_highlight = item.is_highlight;
@@ -593,19 +655,151 @@ impl<T> StatefulWidget for Menu<T> {
 
             let group_x_pos = x_pos;
             let span = Span::styled(item.name(), item_style);
-            x_pos += span.width();
+            x_pos += span.width() as u16;
             spans.push(span);
 
             if has_children && is_highlight {
-                self.render_drop_down(group_x_pos as u16, y_pos + 1, &item.children, buf, 1);
+                self.render_dropdown(group_x_pos, y_pos + 1, &item.children, buf, dropdown_count);
             }
 
             if idx < state.root_item.children.len() - 1 {
                 let span = Span::raw(" | ");
-                x_pos += span.width();
+                x_pos += span.width() as u16;
                 spans.push(span);
             }
         }
-        buf.set_line(area.x, area.y, &Line::from(spans), x_pos as u16);
+        buf.set_line(area.x, area.y, &Line::from(spans), x_pos);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::MenuState;
+
+    type MenuItem = super::MenuItem<i32>;
+
+    #[test]
+    fn test_active_depth() {
+        {
+            let menu_state = MenuState::new(vec![MenuItem::item("item1", 0)]);
+            assert_eq!(menu_state.active_depth(), 0);
+        }
+
+        {
+            let menu_state = MenuState::new(vec![MenuItem::item("item1", 0).with_highlight(true)]);
+            assert_eq!(menu_state.active_depth(), 1);
+        }
+
+        {
+            let menu_state = MenuState::new(vec![MenuItem::group("layer1", vec![])]);
+            assert_eq!(menu_state.active_depth(), 0);
+        }
+
+        {
+            let menu_state =
+                MenuState::new(vec![MenuItem::group("layer1", vec![]).with_highlight(true)]);
+            assert_eq!(menu_state.active_depth(), 1);
+        }
+
+        {
+            let menu_state = MenuState::new(vec![MenuItem::group(
+                "layer_1",
+                vec![MenuItem::item("item_layer_2", 0)],
+            )
+            .with_highlight(true)]);
+            assert_eq!(menu_state.active_depth(), 1);
+        }
+
+        {
+            let menu_state = MenuState::new(vec![MenuItem::group(
+                "layer_1",
+                vec![MenuItem::item("item_layer_2", 0).with_highlight(true)],
+            )
+            .with_highlight(true)]);
+            assert_eq!(menu_state.active_depth(), 2);
+        }
+    }
+
+    #[test]
+    fn test_dropdown_count() {
+        {
+            // only item in menu bar
+            let menu_state = MenuState::new(vec![MenuItem::item("item1", 0)]);
+            assert_eq!(menu_state.dropdown_count(), 0);
+        }
+
+        {
+            // group in menu bar,
+            let menu_state = MenuState::new(vec![MenuItem::group(
+                "menu bar",
+                vec![MenuItem::item("item layer 1", 0)],
+            )
+            .with_highlight(true)]);
+            assert_eq!(menu_state.dropdown_count(), 1);
+        }
+
+        {
+            // group in menu bar,
+            let menu_state = MenuState::new(vec![MenuItem::group(
+                "menu bar 1",
+                vec![
+                    MenuItem::group("dropdown 1", vec![MenuItem::item("item layer 2", 0)])
+                        .with_highlight(true),
+                    MenuItem::item("item layer 1", 0),
+                ],
+            )
+            .with_highlight(true)]);
+            assert_eq!(menu_state.dropdown_count(), 2);
+        }
+
+        {
+            // *menu bar 1
+            // *dropdown 1   >  item layer 2
+            // item layer 1    group layer 2 >
+            let menu_state = MenuState::new(vec![MenuItem::group(
+                "menu bar 1",
+                vec![
+                    MenuItem::group(
+                        "dropdown 1",
+                        vec![
+                            MenuItem::item("item layer 2", 0),
+                            MenuItem::group(
+                                "group layer 2",
+                                vec![MenuItem::item("item layer 3", 0)],
+                            ),
+                        ],
+                    )
+                    .with_highlight(true),
+                    MenuItem::item("item layer 1", 0),
+                ],
+            )
+            .with_highlight(true)]);
+            assert_eq!(menu_state.dropdown_count(), 2);
+        }
+
+        {
+            // *menu bar 1
+            // *dropdown 1   >  *item layer 2
+            // item layer 1    group layer 2 > item layer 3
+            let menu_state = MenuState::new(vec![MenuItem::group(
+                "menu bar 1",
+                vec![
+                    MenuItem::group(
+                        "dropdown 1",
+                        vec![
+                            MenuItem::item("item layer 2", 0).with_highlight(true),
+                            MenuItem::group(
+                                "group layer 2",
+                                vec![MenuItem::item("item layer 3", 0)],
+                            ),
+                        ],
+                    )
+                    .with_highlight(true),
+                    MenuItem::item("item layer 1", 0),
+                ],
+            )
+            .with_highlight(true)]);
+            assert_eq!(menu_state.dropdown_count(), 3);
+        }
     }
 }
