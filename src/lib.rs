@@ -681,29 +681,28 @@ mod tests {
     #[test]
     fn test_active_depth() {
         {
-            let mut menu_state = MenuState::new(vec![MenuItem::item("item1", 0)]);
+            let menu_state = MenuState::new(vec![MenuItem::item("item1", 0)]);
             assert_eq!(menu_state.active_depth(), 0);
         }
 
         {
-            let mut menu_state =
-                MenuState::new(vec![MenuItem::item("item1", 0).with_highlight(true)]);
+            let menu_state = MenuState::new(vec![MenuItem::item("item1", 0).with_highlight(true)]);
             assert_eq!(menu_state.active_depth(), 1);
         }
 
         {
-            let mut menu_state = MenuState::new(vec![MenuItem::group("layer1", vec![])]);
+            let menu_state = MenuState::new(vec![MenuItem::group("layer1", vec![])]);
             assert_eq!(menu_state.active_depth(), 0);
         }
 
         {
-            let mut menu_state =
+            let menu_state =
                 MenuState::new(vec![MenuItem::group("layer1", vec![]).with_highlight(true)]);
             assert_eq!(menu_state.active_depth(), 1);
         }
 
         {
-            let mut menu_state = MenuState::new(vec![MenuItem::group(
+            let menu_state = MenuState::new(vec![MenuItem::group(
                 "layer_1",
                 vec![MenuItem::item("item_layer_2", 0)],
             )
@@ -712,7 +711,7 @@ mod tests {
         }
 
         {
-            let mut menu_state = MenuState::new(vec![MenuItem::group(
+            let menu_state = MenuState::new(vec![MenuItem::group(
                 "layer_1",
                 vec![MenuItem::item("item_layer_2", 0).with_highlight(true)],
             )
@@ -725,13 +724,13 @@ mod tests {
     fn test_dropdown_count() {
         {
             // only item in menu bar
-            let mut menu_state = MenuState::new(vec![MenuItem::item("item1", 0)]);
+            let menu_state = MenuState::new(vec![MenuItem::item("item1", 0)]);
             assert_eq!(menu_state.dropdown_count(), 0);
         }
 
         {
             // group in menu bar,
-            let mut menu_state = MenuState::new(vec![MenuItem::group(
+            let menu_state = MenuState::new(vec![MenuItem::group(
                 "menu bar",
                 vec![MenuItem::item("item layer 1", 0)],
             )
@@ -741,7 +740,7 @@ mod tests {
 
         {
             // group in menu bar,
-            let mut menu_state = MenuState::new(vec![MenuItem::group(
+            let menu_state = MenuState::new(vec![MenuItem::group(
                 "menu bar 1",
                 vec![
                     MenuItem::group("dropdown 1", vec![MenuItem::item("item layer 2", 0)])
@@ -757,7 +756,7 @@ mod tests {
             // *menu bar 1
             // *dropdown 1   >  item layer 2
             // item layer 1    group layer 2 >
-            let mut menu_state = MenuState::new(vec![MenuItem::group(
+            let menu_state = MenuState::new(vec![MenuItem::group(
                 "menu bar 1",
                 vec![
                     MenuItem::group(
@@ -782,7 +781,7 @@ mod tests {
             // *menu bar 1
             // *dropdown 1   >  *item layer 2
             // item layer 1    group layer 2 > item layer 3
-            let mut menu_state = MenuState::new(vec![MenuItem::group(
+            let menu_state = MenuState::new(vec![MenuItem::group(
                 "menu bar 1",
                 vec![
                     MenuItem::group(
