@@ -6,6 +6,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3](https://github.com/shuoli84/tui-menu/compare/v0.2.2...v0.2.3) - 2024-08-06
+
+### Fixed
+- clippy lints ([#11](https://github.com/shuoli84/tui-menu/pull/11))
+
+### Other
+- *(deps)* use ratatui::crossterm instead of importing crossterm ([#16](https://github.com/shuoli84/tui-menu/pull/16))
+- Fix bar being freezed after moving left or right ([#18](https://github.com/shuoli84/tui-menu/pull/18))
+- add a nested group example, this demos how to handle deeply nested me… ([#14](https://github.com/shuoli84/tui-menu/pull/14))
+- add more items
+- don't run release-plz on pull requests ([#10](https://github.com/shuoli84/tui-menu/pull/10))
+
 ## [0.2.2](https://github.com/shuoli84/tui-menu/compare/v0.2.1...v0.2.2) - 2024-06-25
 
 ### Other
