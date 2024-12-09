@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0](https://github.com/shuoli84/tui-menu/compare/v0.2.4...v0.3.0) - 2024-12-09
+
+### Other
+
+- *(deps)* update ratatui requirement from 0.28.0 to 0.29.0 (#21)
+
 ## [0.2.4](https://github.com/shuoli84/tui-menu/compare/v0.2.3...v0.2.4) - 2024-08-26
 
 ### Other
