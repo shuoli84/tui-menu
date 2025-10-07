@@ -68,21 +68,26 @@ Show
 Set TypingSpeed 500ms
 
 # File | Open recent | file_1.txt
-Right Down 3 Right
+Down 4 Right
 # screenshot for ratatui.rs showcase
 Sleep 100ms Screenshot target/demo.png
 Enter Sleep 1s
 
 # File | Open recent | file_2.txt
-Right Down 3 Right Down Enter Sleep 1s
+Down 4 Right Down Enter Sleep 1s
 
 # Show off other menus
-Right 3 Left 2
+Down Right 2 Left 2
+Escape
+Sleep 1s
 
 # File | Exit
-Down 5 Enter
+Set TypingSpeed 200ms
+Down 6
+Sleep 500ms
+Enter
 
 # Show that the app exited before repeating the animation
-Sleep 1s
+Sleep 3s
 Hide
 
