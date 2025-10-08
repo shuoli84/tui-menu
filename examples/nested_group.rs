@@ -102,7 +102,7 @@ enum Action {
 impl App {
     fn run<B: Backend>(mut self, terminal: &mut Terminal<B>) -> io::Result<()> {
         loop {
-            terminal.draw(|frame| frame.render_widget(&mut self, frame.size()))?;
+            terminal.draw(|frame| frame.render_widget(&mut self, frame.area()))?;
 
             if event::poll(std::time::Duration::from_millis(10))? {
                 if let Event::Key(key) = event::read()? {
@@ -139,7 +139,7 @@ impl App {
 impl Widget for &mut App {
     fn render(self, area: Rect, buf: &mut Buffer) {
         use Constraint::*;
-        let [top, main] = Layout::vertical([Length(1), Fill(1)]).areas(area);
+        let [_top, main] = Layout::vertical([Length(1), Fill(1)]).areas(area);
 
         Paragraph::new(self.content.as_str())
             .block(Block::bordered().title("Content").on_black())

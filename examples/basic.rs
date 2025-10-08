@@ -113,7 +113,7 @@ enum Action {
 impl App {
     fn run<B: Backend>(mut self, terminal: &mut Terminal<B>) -> io::Result<()> {
         loop {
-            terminal.draw(|frame| frame.render_widget(&mut self, frame.size()))?;
+            terminal.draw(|frame| frame.render_widget(&mut self, frame.area()))?;
 
             if event::poll(std::time::Duration::from_millis(10))? {
                 if let Event::Key(key) = event::read()? {
