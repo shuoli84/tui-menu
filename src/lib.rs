@@ -17,13 +17,12 @@ will be stored in MenuState.events.
 To define a menu, see examples in [MenuState].
 */
 
-#![allow(dead_code)]
-
 use ratatui::{
     layout::Rect,
+    prelude::*,
     style::{Color, Style},
     text::{Line, Span},
-    widgets::{Clear, StatefulWidget, Widget},
+    widgets::{Block, Borders, Clear, StatefulWidget, Widget},
 };
 use std::{borrow::Cow, marker::PhantomData};
 
@@ -603,8 +602,11 @@ impl<T> Menu<T> {
             .map(|menu_item| Span::from(menu_item.name.clone()).width())
             .max()
             .unwrap_or(0) as u16;
-        let min_drop_down_width: u16 = child_max_width + 6;
-        let min_drop_down_height: u16 = (group.len() as u16) + 2;
+
+        // Compute minimum size needed after border is added
+        // Border is 3 chars wide and 1 char high, on both sides.
+        let min_drop_down_width: u16 = child_max_width + 3 + 3;
+        let min_drop_down_height: u16 = (group.len() as u16) + 1 + 1;
 
         // prevent calculation issue if canvas is narrow
         let drop_down_width = self.drop_down_width.min(buf.area.width);
@@ -629,9 +631,6 @@ impl<T> Menu<T> {
         buf.set_style(area, self.default_item_style);
 
         // Render menu border
-        use ratatui::prelude::Margin;
-        use ratatui::widgets::Block;
-        use ratatui::widgets::Borders;
         let border = Block::default()
             .borders(Borders::ALL)
             .style(self.default_item_style);
