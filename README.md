@@ -2,8 +2,7 @@
 
 A menu widget for [Ratatui](https://crates.io/crates/ratatui).
 
-![Demo](https://vhs.charm.sh/vhs-3pN84WzBTmPTbU2SCtvUiV.gif)
-
+![Demo](https://vhs.charm.sh/vhs-73WyYtjPZG8s9uOuEspiD7.gif)
 ## Features
 
 - Sub menu groups.
