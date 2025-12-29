@@ -1,4 +1,5 @@
 use color_eyre::config::HookBuilder;
+
 use ratatui::{
     crossterm::{
         event::{self, Event, KeyCode},
@@ -6,12 +7,12 @@ use ratatui::{
         terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
     },
     prelude::{
-        Backend, Buffer, Constraint, CrosstermBackend, Layout, Rect, StatefulWidget, Stylize,
-        Terminal, Widget,
+        Buffer, Constraint, CrosstermBackend, Layout, Rect, StatefulWidget, Stylize, Terminal,
+        Widget,
     },
     widgets::{Block, Paragraph},
 };
-use std::io::{self, stdout, Stdout};
+use std::io::{self, stdout, Stdout, Write};
 use tui_menu::{Menu, MenuEvent, MenuItem, MenuState};
 
 fn main() -> color_eyre::Result<()> {
@@ -111,7 +112,7 @@ enum Action {
 }
 
 impl App {
-    fn run<B: Backend>(mut self, terminal: &mut Terminal<B>) -> io::Result<()> {
+    fn run<W: Write>(mut self, terminal: &mut Terminal<CrosstermBackend<W>>) -> io::Result<()> {
         loop {
             terminal.draw(|frame| frame.render_widget(&mut self, frame.area()))?;
 

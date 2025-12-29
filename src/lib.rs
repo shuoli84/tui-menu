@@ -17,13 +17,14 @@ will be stored in MenuState.events.
 To define a menu, see examples in [MenuState].
 */
 
-use ratatui::{
-    layout::Rect,
-    prelude::*,
+use ratatui_core::{
+    buffer::Buffer,
+    layout::{Margin, Rect},
     style::{Color, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, StatefulWidget, Widget},
+    widgets::{StatefulWidget, Widget},
 };
+use ratatui_widgets::{block::Block, borders::Borders, clear::Clear};
 use std::{borrow::Cow, marker::PhantomData};
 
 /// Events this widget produce
@@ -116,7 +117,7 @@ impl<T: Clone> MenuState<T> {
     ///
     /// case 3:
     ///
-    ///    group 1        group 2   
+    ///    group 1        group 2
     ///                   sub item 1
     ///                 > sub item 2  > sub sub item 1
     ///                                 sub sub item 2
@@ -163,7 +164,7 @@ impl<T: Clone> MenuState<T> {
     /// down does nothing
     ///
     /// case 3:
-    ///    group 1        group 2   
+    ///    group 1        group 2
     ///                 > sub item 1
     ///                   sub item 2
     ///
@@ -193,7 +194,7 @@ impl<T: Clone> MenuState<T> {
     /// left first pop "sub item group", then highlights "group 1"
     ///
     /// case 3:
-    ///    group 1        group 2   
+    ///    group 1        group 2
     ///                 > sub item 1    sub sub item 1
     ///                   sub item 2  > sub sub item 2
     ///
@@ -593,7 +594,7 @@ impl<T> Menu<T> {
         x: u16,
         y: u16,
         group: &[MenuItem<T>],
-        buf: &mut ratatui::buffer::Buffer,
+        buf: &mut Buffer,
         dropdown_count_to_go: u16, // including current, it is not drawn yet
     ) {
         // Compute width of all menu items
@@ -695,7 +696,7 @@ impl<T> Default for Menu<T> {
 impl<T: Clone> StatefulWidget for Menu<T> {
     type State = MenuState<T>;
 
-    fn render(self, area: Rect, buf: &mut ratatui::buffer::Buffer, state: &mut Self::State) {
+    fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         let area = area.clamp(*buf.area());
 
         let mut spans = vec![];
