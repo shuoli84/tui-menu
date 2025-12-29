@@ -15,4 +15,4 @@ ratatui-widgets = "0.3.0"
 
 [dev-dependencies]
 color-eyre = "0.6.3"
-ratatui = "0.30.0"
+ratatui = { version = "0.30.0", features = ["crossterm"] }

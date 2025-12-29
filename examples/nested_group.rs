@@ -100,10 +100,7 @@ enum Action {
 }
 
 impl App {
-    fn run<W: std::io::Write>(
-        mut self,
-        terminal: &mut Terminal<CrosstermBackend<W>>,
-    ) -> io::Result<()> {
+    fn run(mut self, terminal: &mut ratatui::DefaultTerminal) -> io::Result<()> {
         loop {
             terminal.draw(|frame| frame.render_widget(&mut self, frame.area()))?;
 

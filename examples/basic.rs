@@ -12,7 +12,7 @@ use ratatui::{
     },
     widgets::{Block, Paragraph},
 };
-use std::io::{self, stdout, Stdout, Write};
+use std::io::{self, stdout, Stdout};
 use tui_menu::{Menu, MenuEvent, MenuItem, MenuState};
 
 fn main() -> color_eyre::Result<()> {
@@ -112,7 +112,7 @@ enum Action {
 }
 
 impl App {
-    fn run<W: Write>(mut self, terminal: &mut Terminal<CrosstermBackend<W>>) -> io::Result<()> {
+    fn run(mut self, terminal: &mut ratatui::DefaultTerminal) -> io::Result<()> {
         loop {
             terminal.draw(|frame| frame.render_widget(&mut self, frame.area()))?;
 
