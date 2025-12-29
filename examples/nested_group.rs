@@ -1,50 +1,15 @@
-use color_eyre::config::HookBuilder;
 use ratatui::{
-    crossterm::{
-        event::{self, Event, KeyCode},
-        execute,
-        terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
-    },
+    crossterm::event::{self, Event, KeyCode},
     prelude::*,
     widgets::{Block, Paragraph},
 };
-use std::io::{self, stdout, Stdout};
 use tui_menu::{Menu, MenuEvent, MenuItem, MenuState};
 
 fn main() -> color_eyre::Result<()> {
-    let mut terminal = init_terminal()?;
-    App::new().run(&mut terminal)?;
-    restore_terminal()?;
+    color_eyre::install()?;
+
+    ratatui::run(|t| App::new().run(t))?;
     Ok(())
-}
-
-/// Install panic and error hooks that restore the terminal before printing the error.
-pub fn init_hooks() -> color_eyre::Result<()> {
-    let (panic, error) = HookBuilder::default().into_hooks();
-    let panic = panic.into_panic_hook();
-    let error = error.into_eyre_hook();
-
-    std::panic::set_hook(Box::new(move |info| {
-        let _ = restore_terminal(); // ignore failure to restore terminal
-        panic(info);
-    }));
-    color_eyre::eyre::set_hook(Box::new(move |e| {
-        let _ = restore_terminal(); // ignore failure to restore terminal
-        error(e)
-    }))?;
-
-    Ok(())
-}
-
-fn init_terminal() -> io::Result<Terminal<CrosstermBackend<Stdout>>> {
-    enable_raw_mode()?;
-    execute!(stdout(), EnterAlternateScreen)?;
-    Terminal::new(CrosstermBackend::new(stdout()))
-}
-
-fn restore_terminal() -> io::Result<()> {
-    disable_raw_mode()?;
-    execute!(stdout(), LeaveAlternateScreen,)
 }
 
 struct App {
@@ -100,7 +65,7 @@ enum Action {
 }
 
 impl App {
-    fn run(mut self, terminal: &mut ratatui::DefaultTerminal) -> io::Result<()> {
+    fn run(mut self, terminal: &mut ratatui::DefaultTerminal) -> std::io::Result<()> {
         loop {
             terminal.draw(|frame| frame.render_widget(&mut self, frame.area()))?;
 
