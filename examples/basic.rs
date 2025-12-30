@@ -3,10 +3,11 @@ use ratatui::{
     prelude::{Buffer, Constraint, Layout, Rect, StatefulWidget, Stylize, Widget},
     widgets::{Block, Paragraph},
 };
-use std::io::{self};
 use tui_menu::{Menu, MenuEvent, MenuItem, MenuState};
 
 fn main() -> color_eyre::Result<()> {
+    color_eyre::install()?;
+
     ratatui::run(|t| App::new().run(t))?;
     Ok(())
 }
@@ -72,7 +73,7 @@ enum Action {
 }
 
 impl App {
-    fn run(mut self, terminal: &mut ratatui::DefaultTerminal) -> io::Result<()> {
+    fn run(mut self, terminal: &mut ratatui::DefaultTerminal) -> std::io::Result<()> {
         loop {
             terminal.draw(|frame| frame.render_widget(&mut self, frame.area()))?;
 
