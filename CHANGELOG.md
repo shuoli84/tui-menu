@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1](https://github.com/shuoli84/tui-menu/compare/v0.3.0...v0.3.1) - 2025-12-30
+
+### Other
+
+- update ratatui to 0.30 ([#28](https://github.com/shuoli84/tui-menu/pull/28))
+- Add a border to menus (issue #25) ([#26](https://github.com/shuoli84/tui-menu/pull/26))
+- *(deps)* bump codecov/codecov-action from 4 to 5 ([#22](https://github.com/shuoli84/tui-menu/pull/22))
+
 ### Added
 - Border around drop down menus
 
